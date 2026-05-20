@@ -3,7 +3,7 @@ import type { AppData, DayOfWeek, Habit } from './types';
 import { emptyAppData } from './types';
 import { newId } from './ids';
 import { isDueOn, normalizeDays } from './schedule';
-import { currentDate } from './currentDate.svelte';
+import { selectedDate } from './selectedDate.svelte';
 import { STORAGE_KEY, loadInitial, migrate, save } from './storage';
 
 class HabitStore {
@@ -23,17 +23,17 @@ class HabitStore {
     return map;
   });
 
-  dueToday = $derived.by(() => {
-    const today = currentDate.value;
-    return this.data.habits.filter((h) => isDueOn(h, today));
+  dueHabits = $derived.by(() => {
+    const date = selectedDate.value;
+    return this.data.habits.filter((h) => isDueOn(h, date) && h.createdAt.slice(0, 10) <= date);
   });
 
   doneCount = $derived.by(() => {
-    const today = currentDate.value;
-    return this.dueToday.filter((h) => this.isDone(h.id, today)).length;
+    const date = selectedDate.value;
+    return this.dueHabits.filter((h) => this.isDone(h.id, date)).length;
   });
 
-  totalCount = $derived(this.dueToday.length);
+  totalCount = $derived(this.dueHabits.length);
 
   progressPct = $derived(
     this.totalCount > 0 ? Math.floor((this.doneCount / this.totalCount) * 100) : 0

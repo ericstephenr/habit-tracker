@@ -3,11 +3,17 @@ import { isDueOn, previousDay } from './schedule';
 
 const MAX_LOOKBACK_DAYS = 365;
 
-export function calcStreak(habit: Habit, dones: Set<string> | undefined, todayISO: string): number {
+export function calcStreak(
+  habit: Habit,
+  dones: Set<string> | undefined,
+  referenceDate: string,
+  realToday: string
+): number {
   const set = dones ?? new Set<string>();
 
-  let date = todayISO;
-  if (isDueOn(habit, date) && !set.has(date)) {
+  let date = referenceDate;
+  const inProgress = referenceDate === realToday;
+  if (inProgress && isDueOn(habit, date) && !set.has(date)) {
     date = previousDay(date);
   }
 

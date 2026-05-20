@@ -9,18 +9,23 @@
   import IconCheck from './icons/IconCheck.svelte';
   import IconKebab from './icons/IconKebab.svelte';
 
-  let { habit, onEdit }: { habit: Habit; onEdit: (h: Habit) => void } = $props();
+  let { habit, onEdit, date }: { habit: Habit; onEdit: (h: Habit) => void; date: string } =
+    $props();
 
-  let today = $derived(currentDate.value);
-  let done = $derived(store.isDone(habit.id, today));
-  let streak = $derived(calcStreak(habit, store.donesByHabit.get(habit.id), today));
+  let isFuture = $derived(date > currentDate.value);
+  let done = $derived(store.isDone(habit.id, date));
+  let streakRef = $derived(isFuture ? currentDate.value : date);
+  let streak = $derived(
+    calcStreak(habit, store.donesByHabit.get(habit.id), streakRef, currentDate.value)
+  );
   let menuOpen = $derived(menuState.isOpen(habit.id));
   let menuRef: HTMLDivElement | null = $state(null);
   let kebabRef: HTMLButtonElement | null = $state(null);
   let confirmOpen = $state(false);
 
   function toggle() {
-    store.toggleCompletion(habit.id, today);
+    if (isFuture) return;
+    store.toggleCompletion(habit.id, date);
   }
 
   function toggleMenu() {
@@ -63,11 +68,20 @@
   <button
     type="button"
     onclick={toggle}
+    disabled={isFuture}
     aria-pressed={done}
-    aria-label={done ? `Mark ${habit.name} not done` : `Mark ${habit.name} done`}
+    aria-label={isFuture
+      ? `Cannot mark ${habit.name} in the future`
+      : done
+        ? `Mark ${habit.name} not done`
+        : `Mark ${habit.name} done`}
     class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition {done
       ? 'border-teal-500 bg-teal-500 text-white'
-      : 'border-slate-300 bg-white text-transparent hover:border-slate-400'}"
+      : 'border-slate-300 bg-white text-transparent'} {isFuture
+      ? 'cursor-not-allowed opacity-40'
+      : done
+        ? ''
+        : 'hover:border-slate-400'}"
   >
     <IconCheck class="h-4 w-4" />
   </button>

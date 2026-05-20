@@ -27,6 +27,12 @@ export function previousDay(yyyy_mm_dd: string): string {
   return isoDate(d);
 }
 
+export function nextDay(yyyy_mm_dd: string): string {
+  const d = parseISO(yyyy_mm_dd);
+  d.setDate(d.getDate() + 1);
+  return isoDate(d);
+}
+
 export function isDueOn(habit: Habit, dateISO: string): boolean {
   return habit.schedule.days.includes(weekdayOf(dateISO));
 }
@@ -59,9 +65,13 @@ const MONTH_LABELS = [
   'December'
 ] as const;
 
-export function formatTodayHeader(dateISO: string): string {
+export function formatDateHeader(dateISO: string): string {
   const d = parseISO(dateISO);
   return `${WEEKDAY_LABELS[d.getDay()]}, ${MONTH_LABELS[d.getMonth()]} ${d.getDate()}`;
+}
+
+export function formatWeekday(dateISO: string): string {
+  return WEEKDAY_LABELS[parseISO(dateISO).getDay()];
 }
 
 export const DAY_LETTERS: ReadonlyArray<string> = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];

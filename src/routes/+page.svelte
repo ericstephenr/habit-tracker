@@ -1,15 +1,19 @@
 <script lang="ts">
   import type { Habit } from '$lib/types';
   import { store } from '$lib/store.svelte';
-  import { formatTodayHeader, todayISO } from '$lib/schedule';
+  import { formatDateHeader, formatWeekday, todayISO } from '$lib/schedule';
   import { readBackup } from '$lib/storage';
-  import { currentDate } from '$lib/currentDate.svelte';
+  import { selectedDate } from '$lib/selectedDate.svelte';
   import HabitItem from '$lib/components/HabitItem.svelte';
   import AddHabitModal from '$lib/components/AddHabitModal.svelte';
   import IconPlus from '$lib/components/icons/IconPlus.svelte';
+  import IconChevronLeft from '$lib/components/icons/IconChevronLeft.svelte';
+  import IconChevronRight from '$lib/components/icons/IconChevronRight.svelte';
 
   let modalOpen = $state(false);
   let editingHabit = $state<Habit | undefined>(undefined);
+
+  let overline = $derived(selectedDate.isToday ? 'Today' : selectedDate.isPast ? 'Past' : 'Future');
 
   function openAdd() {
     editingHabit = undefined;
@@ -37,7 +41,7 @@
 </script>
 
 <svelte:head>
-  <title>Today · Habit Tracker</title>
+  <title>{overline} · Habit Tracker</title>
 </svelte:head>
 
 <main class="mx-auto min-h-svh max-w-md px-4 pt-8 pb-[calc(8rem+env(safe-area-inset-bottom))]">
@@ -68,44 +72,76 @@
 
   <header class="mb-6">
     <div class="flex items-end justify-between">
-      <div>
-        <p class="text-xs tracking-wide text-slate-500 uppercase">Today</p>
-        <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
-          {formatTodayHeader(currentDate.value)}
-        </h1>
-      </div>
-      {#if store.totalCount > 0}
-        <span
-          class="inline-flex items-baseline gap-1 rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700"
-        >
-          <span class="text-slate-900">{store.doneCount}</span>
-          <span class="text-slate-400">/ {store.totalCount}</span>
-        </span>
-      {/if}
+      <p class="text-xs tracking-wide text-slate-500 uppercase">{overline}</p>
+      <span
+        aria-hidden={store.totalCount === 0}
+        class="inline-flex items-baseline gap-1 rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700 {store.totalCount ===
+        0
+          ? 'invisible'
+          : ''}"
+      >
+        <span class="text-slate-900">{store.doneCount}</span>
+        <span class="text-slate-400">/ {store.totalCount}</span>
+      </span>
     </div>
 
-    {#if store.totalCount > 0}
-      <div
-        class="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200"
-        role="progressbar"
-        aria-valuemin="0"
-        aria-valuemax="100"
-        aria-valuenow={store.progressPct}
-        aria-label="{store.doneCount} of {store.totalCount} habits complete"
+    <div class="mt-1 flex items-center justify-between gap-2">
+      <button
+        type="button"
+        onclick={() => selectedDate.goPrev()}
+        aria-label="Previous day"
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-700"
       >
-        <div
-          class="h-full bg-gradient-to-r from-teal-400 to-teal-600 transition-[width] duration-300"
-          style="width: {store.progressPct}%"
-        ></div>
-      </div>
-    {/if}
+        <IconChevronLeft class="h-5 w-5" />
+      </button>
+      <h1 class="flex-1 text-center text-2xl font-semibold tracking-tight text-slate-900">
+        {formatDateHeader(selectedDate.value)}
+      </h1>
+      <button
+        type="button"
+        onclick={() => selectedDate.goNext()}
+        aria-label="Next day"
+        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+      >
+        <IconChevronRight class="h-5 w-5" />
+      </button>
+    </div>
+
+    <div class="mt-2 flex justify-center">
+      <button
+        type="button"
+        onclick={() => selectedDate.goToday()}
+        aria-hidden={selectedDate.isToday}
+        tabindex={selectedDate.isToday ? -1 : 0}
+        class="rounded-full bg-teal-50 px-3 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100 {selectedDate.isToday
+          ? 'invisible'
+          : ''}">Jump to today</button
+      >
+    </div>
+
+    <div
+      class="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200 {store.totalCount === 0
+        ? 'invisible'
+        : ''}"
+      role="progressbar"
+      aria-hidden={store.totalCount === 0}
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow={store.progressPct}
+      aria-label="{store.doneCount} of {store.totalCount} habits complete"
+    >
+      <div
+        class="h-full bg-gradient-to-r from-teal-400 to-teal-600 transition-[width] duration-300"
+        style="width: {store.progressPct}%"
+      ></div>
+    </div>
   </header>
 
-  {#if store.dueToday.length > 0}
+  {#if store.dueHabits.length > 0}
     <ul class="space-y-2">
-      {#each store.dueToday as habit (habit.id)}
+      {#each store.dueHabits as habit (habit.id)}
         <li>
-          <HabitItem {habit} onEdit={openEdit} />
+          <HabitItem {habit} date={selectedDate.value} onEdit={openEdit} />
         </li>
       {/each}
     </ul>
@@ -113,10 +149,13 @@
     <div
       class="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500"
     >
-      No habits scheduled for today. Enjoy a rest day, or
-      <button type="button" onclick={openAdd} class="font-medium text-teal-700 hover:underline"
-        >add another habit</button
-      >.
+      No habits scheduled for {formatWeekday(selectedDate.value)}.
+      {#if selectedDate.isToday}
+        Enjoy a rest day, or
+        <button type="button" onclick={openAdd} class="font-medium text-teal-700 hover:underline"
+          >add another habit</button
+        >.
+      {/if}
     </div>
   {:else}
     <div class="rounded-xl border border-dashed border-slate-300 p-8 text-center">
