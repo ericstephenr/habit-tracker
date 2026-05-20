@@ -25,7 +25,7 @@ class HabitStore {
 
   dueHabits = $derived.by(() => {
     const date = selectedDate.value;
-    return this.data.habits.filter((h) => isDueOn(h, date) && h.createdAt.slice(0, 10) <= date);
+    return this.data.habits.filter((h) => isDueOn(h, date) && h.startDate <= date);
   });
 
   doneCount = $derived.by(() => {
@@ -66,25 +66,42 @@ class HabitStore {
     this.recoveryNotice = false;
   }
 
-  addHabit(name: string, days: DayOfWeek[]): Habit {
+  addHabit(name: string, days: DayOfWeek[], startDate: string): Habit {
     const habit: Habit = {
       id: newId(),
       name: name.trim(),
       schedule: { type: 'weekly_days', days: normalizeDays(days) },
-      createdAt: new Date().toISOString()
+      startDate
     };
     this.data.habits.push(habit);
     save(this.data);
     return habit;
   }
 
-  updateHabit(id: string, patch: Partial<Pick<Habit, 'name' | 'schedule'>>): boolean {
+  updateHabit(id: string, patch: Partial<Pick<Habit, 'name' | 'schedule' | 'startDate'>>): boolean {
     const h = this.data.habits.find((x) => x.id === id);
     if (!h) return false;
     if (patch.name !== undefined) h.name = patch.name.trim();
     if (patch.schedule !== undefined) h.schedule = patch.schedule;
+    if (patch.startDate !== undefined) {
+      const newStart = patch.startDate;
+      h.startDate = newStart;
+      // Maintain the invariant that completions exist only on/after startDate.
+      // Caller is responsible for warning the user first when this would discard data.
+      this.data.completions = this.data.completions.filter(
+        (c) => c.habitId !== id || c.date >= newStart
+      );
+    }
     save(this.data);
     return true;
+  }
+
+  completionsBefore(habitId: string, dateExclusive: string): number {
+    let count = 0;
+    for (const c of this.data.completions) {
+      if (c.habitId === habitId && c.date < dateExclusive) count++;
+    }
+    return count;
   }
 
   deleteHabit(id: string): boolean {

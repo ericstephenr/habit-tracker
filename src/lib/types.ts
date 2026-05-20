@@ -11,7 +11,9 @@ export type Habit = {
   id: string;
   name: string;
   schedule: Schedule;
-  createdAt: string;
+  // YYYY-MM-DD. User-controlled; defaults to the date the habit was added on.
+  // Drives time-machine visibility and streak lookback.
+  startDate: string;
 };
 
 export type Completion = {

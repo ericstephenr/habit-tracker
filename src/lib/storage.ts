@@ -26,7 +26,7 @@ function isHabit(h: unknown): h is Habit {
   if (!isPlainObject(h)) return false;
   if (typeof h.id !== 'string' || h.id.length === 0) return false;
   if (typeof h.name !== 'string') return false;
-  if (typeof h.createdAt !== 'string') return false;
+  if (typeof h.startDate !== 'string' || !ISO_DATE_RE.test(h.startDate)) return false;
   return isSchedule(h.schedule);
 }
 

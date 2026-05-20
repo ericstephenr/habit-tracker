@@ -19,6 +19,7 @@ export function calcStreak(
 
   let streak = 0;
   for (let i = 0; i < MAX_LOOKBACK_DAYS; i++) {
+    if (date < habit.startDate) break;
     if (isDueOn(habit, date)) {
       if (set.has(date)) {
         streak++;
