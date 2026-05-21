@@ -3,15 +3,19 @@
   import { store } from '$lib/store.svelte';
   import { formatDateHeader, formatWeekday, todayISO } from '$lib/schedule';
   import { readBackup } from '$lib/storage';
+  import { downloadJson } from '$lib/importExport';
   import { selectedDate } from '$lib/selectedDate.svelte';
   import HabitItem from '$lib/components/HabitItem.svelte';
   import AddHabitModal from '$lib/components/AddHabitModal.svelte';
+  import DataModal from '$lib/components/DataModal.svelte';
   import IconPlus from '$lib/components/icons/IconPlus.svelte';
   import IconChevronLeft from '$lib/components/icons/IconChevronLeft.svelte';
   import IconChevronRight from '$lib/components/icons/IconChevronRight.svelte';
+  import IconGear from '$lib/components/icons/IconGear.svelte';
   import Sortable from 'sortablejs';
 
   let modalOpen = $state(false);
+  let dataModalOpen = $state(false);
   let editingHabit = $state<Habit | undefined>(undefined);
   let ulRef: HTMLUListElement | undefined = $state();
 
@@ -48,15 +52,7 @@
   function downloadBackup() {
     const raw = readBackup();
     if (!raw) return;
-    const blob = new Blob([raw], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `habit-tracker-backup-${todayISO()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadJson(`habit-tracker-backup-${todayISO()}.json`, raw);
   }
 </script>
 
@@ -93,16 +89,26 @@
   <header class="mb-6">
     <div class="flex items-end justify-between">
       <p class="text-xs tracking-wide text-slate-500 uppercase">{overline}</p>
-      <span
-        aria-hidden={store.totalCount === 0}
-        class="inline-flex items-baseline gap-1 rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700 {store.totalCount ===
-        0
-          ? 'invisible'
-          : ''}"
-      >
-        <span class="text-slate-900">{store.doneCount}</span>
-        <span class="text-slate-400">/ {store.totalCount}</span>
-      </span>
+      <div class="flex items-center gap-1">
+        <span
+          aria-hidden={store.totalCount === 0}
+          class="inline-flex items-baseline gap-1 rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700 {store.totalCount ===
+          0
+            ? 'invisible'
+            : ''}"
+        >
+          <span class="text-slate-900">{store.doneCount}</span>
+          <span class="text-slate-400">/ {store.totalCount}</span>
+        </span>
+        <button
+          type="button"
+          onclick={() => (dataModalOpen = true)}
+          aria-label="Open data settings"
+          class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+        >
+          <IconGear class="h-4 w-4" />
+        </button>
+      </div>
     </div>
 
     <div class="mt-1 flex items-center justify-between gap-2">
@@ -201,3 +207,4 @@
 </button>
 
 <AddHabitModal bind:open={modalOpen} habit={editingHabit} />
+<DataModal bind:open={dataModalOpen} />

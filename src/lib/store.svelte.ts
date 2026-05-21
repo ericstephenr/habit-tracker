@@ -88,6 +88,11 @@ class HabitStore {
     this.recoveryNotice = false;
   }
 
+  replaceAll(next: AppData): void {
+    this.data = next;
+    save(this.data);
+  }
+
   addHabit(input: NewHabitInput): Habit {
     const base = {
       id: newId(),
