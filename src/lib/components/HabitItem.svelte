@@ -2,18 +2,26 @@
   import type { Habit } from '$lib/types';
   import { store } from '$lib/store.svelte';
   import { calcStreak } from '$lib/streaks';
+  import { effectiveTarget } from '$lib/schedule';
   import { currentDate } from '$lib/currentDate.svelte';
   import { menuState } from '$lib/menuState.svelte';
   import StreakBadge from './StreakBadge.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import IconCheck from './icons/IconCheck.svelte';
   import IconKebab from './icons/IconKebab.svelte';
+  import IconMinus from './icons/IconMinus.svelte';
+  import IconPlus from './icons/IconPlus.svelte';
 
   let { habit, onEdit, date }: { habit: Habit; onEdit: (h: Habit) => void; date: string } =
     $props();
 
   let isFuture = $derived(date > currentDate.value);
   let done = $derived(store.isDone(habit.id, date));
+  let target = $derived(habit.type === 'counter' ? effectiveTarget(habit, date) : 0);
+  let count = $derived(habit.type === 'counter' ? store.getCount(habit.id, date) : 0);
+  let unitSuffix = $derived(
+    habit.type === 'counter' && habit.counter.unit ? ` ${habit.counter.unit}` : ''
+  );
   let streakRef = $derived(isFuture ? currentDate.value : date);
   let streak = $derived(
     calcStreak(habit, store.donesByHabit.get(habit.id), streakRef, currentDate.value)
@@ -26,6 +34,16 @@
   function toggle() {
     if (isFuture) return;
     store.toggleCompletion(habit.id, date);
+  }
+
+  function inc() {
+    if (isFuture || habit.type !== 'counter') return;
+    store.setCount(habit.id, date, count + habit.counter.step);
+  }
+
+  function dec() {
+    if (isFuture || habit.type !== 'counter') return;
+    store.setCount(habit.id, date, Math.max(0, count - habit.counter.step));
   }
 
   function toggleMenu() {
@@ -65,30 +83,70 @@
 </script>
 
 <div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-  <button
-    type="button"
-    onclick={toggle}
-    disabled={isFuture}
-    aria-pressed={done}
-    aria-label={isFuture
-      ? `Cannot mark ${habit.name} in the future`
-      : done
-        ? `Mark ${habit.name} not done`
-        : `Mark ${habit.name} done`}
-    class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition {done
-      ? 'border-teal-500 bg-teal-500 text-white'
-      : 'border-slate-300 bg-white text-transparent'} {isFuture
-      ? 'cursor-not-allowed opacity-40'
-      : done
-        ? ''
-        : 'hover:border-slate-400'}"
-  >
-    <IconCheck class="h-4 w-4" />
-  </button>
+  {#if habit.type === 'binary'}
+    <button
+      type="button"
+      onclick={toggle}
+      disabled={isFuture}
+      aria-pressed={done}
+      aria-label={isFuture
+        ? `Cannot mark ${habit.name} in the future`
+        : done
+          ? `Mark ${habit.name} not done`
+          : `Mark ${habit.name} done`}
+      class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition {done
+        ? 'border-teal-500 bg-teal-500 text-white'
+        : 'border-slate-300 bg-white text-transparent'} {isFuture
+        ? 'cursor-not-allowed opacity-40'
+        : done
+          ? ''
+          : 'hover:border-slate-400'}"
+    >
+      <IconCheck class="h-4 w-4" />
+    </button>
+  {:else}
+    <div
+      aria-hidden="true"
+      class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition {done
+        ? 'border-teal-500 bg-teal-500 text-white'
+        : 'border-slate-300 bg-white text-transparent'} {isFuture ? 'opacity-40' : ''}"
+    >
+      <IconCheck class="h-4 w-4" />
+    </div>
+  {/if}
 
   <span class="min-w-0 flex-1 truncate {done ? 'text-slate-400 line-through' : 'text-slate-900'}"
     >{habit.name}</span
   >
+
+  {#if habit.type === 'counter'}
+    <div class="flex shrink-0 items-center gap-1">
+      <button
+        type="button"
+        onclick={dec}
+        disabled={isFuture || count === 0}
+        aria-label={`Decrease ${habit.name} by ${habit.counter.step}${unitSuffix}`}
+        class="flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <IconMinus class="h-3 w-3" />
+      </button>
+      <span
+        aria-live="polite"
+        class="min-w-[3.5rem] px-1 text-center text-xs tabular-nums {done
+          ? 'font-semibold text-teal-700'
+          : 'text-slate-600'}">{count}/{target}{unitSuffix}</span
+      >
+      <button
+        type="button"
+        onclick={inc}
+        disabled={isFuture}
+        aria-label={`Increase ${habit.name} by ${habit.counter.step}${unitSuffix}`}
+        class="flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <IconPlus class="h-3 w-3" />
+      </button>
+    </div>
+  {/if}
 
   <StreakBadge {streak} />
 

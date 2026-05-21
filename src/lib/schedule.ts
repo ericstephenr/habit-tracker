@@ -1,4 +1,4 @@
-import type { DayOfWeek, Habit } from './types';
+import type { CounterHabit, DayOfWeek, Habit } from './types';
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
@@ -35,6 +35,10 @@ export function nextDay(yyyy_mm_dd: string): string {
 
 export function isDueOn(habit: Habit, dateISO: string): boolean {
   return habit.schedule.days.includes(weekdayOf(dateISO));
+}
+
+export function effectiveTarget(habit: CounterHabit, dateISO: string): number {
+  return habit.counter.perDayTargets?.[weekdayOf(dateISO)] ?? habit.counter.target;
 }
 
 export function normalizeDays(days: DayOfWeek[]): DayOfWeek[] {

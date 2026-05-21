@@ -7,7 +7,14 @@ export type WeeklyDaysSchedule = {
 
 export type Schedule = WeeklyDaysSchedule;
 
-export type Habit = {
+export type CounterConfig = {
+  target: number;
+  step: number;
+  unit: string;
+  perDayTargets?: Partial<Record<DayOfWeek, number>>;
+};
+
+type BaseHabit = {
   id: string;
   name: string;
   schedule: Schedule;
@@ -16,19 +23,24 @@ export type Habit = {
   startDate: string;
 };
 
+export type BinaryHabit = BaseHabit & { type: 'binary' };
+export type CounterHabit = BaseHabit & { type: 'counter'; counter: CounterConfig };
+export type Habit = BinaryHabit | CounterHabit;
+
 export type Completion = {
   habitId: string;
   date: string;
+  count?: number;
 };
 
 export type AppData = {
-  version: 1;
+  version: 2;
   habits: Habit[];
   completions: Completion[];
 };
 
 export const emptyAppData = (): AppData => ({
-  version: 1,
+  version: 2,
   habits: [],
   completions: []
 });

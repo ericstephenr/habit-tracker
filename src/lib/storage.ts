@@ -1,9 +1,9 @@
-import type { AppData, Completion, DayOfWeek, Habit, Schedule } from './types';
+import type { AppData, Completion, CounterConfig, DayOfWeek, Habit, Schedule } from './types';
 import { emptyAppData } from './types';
 
 export const STORAGE_KEY = 'habit-tracker:v1';
 export const BACKUP_KEY = 'habit-tracker:backup';
-export const CURRENT_VERSION = 1 as const;
+export const CURRENT_VERSION = 2 as const;
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -22,28 +22,49 @@ function isSchedule(s: unknown): s is Schedule {
   return s.days.every(isDayOfWeek);
 }
 
+function isCounterConfig(c: unknown): c is CounterConfig {
+  if (!isPlainObject(c)) return false;
+  if (typeof c.target !== 'number' || !Number.isFinite(c.target) || c.target <= 0) return false;
+  if (typeof c.step !== 'number' || !Number.isFinite(c.step) || c.step <= 0) return false;
+  if (typeof c.unit !== 'string') return false;
+  if ('perDayTargets' in c && c.perDayTargets !== undefined) {
+    if (!isPlainObject(c.perDayTargets)) return false;
+    for (const [k, v] of Object.entries(c.perDayTargets)) {
+      const day = Number(k);
+      if (!Number.isInteger(day) || day < 0 || day > 6) return false;
+      if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return false;
+    }
+  }
+  return true;
+}
+
 function isHabit(h: unknown): h is Habit {
   if (!isPlainObject(h)) return false;
   if (typeof h.id !== 'string' || h.id.length === 0) return false;
   if (typeof h.name !== 'string') return false;
   if (typeof h.startDate !== 'string' || !ISO_DATE_RE.test(h.startDate)) return false;
-  return isSchedule(h.schedule);
+  if (!isSchedule(h.schedule)) return false;
+  if (h.type !== 'binary' && h.type !== 'counter') return false;
+  if (h.type === 'counter' && !isCounterConfig(h.counter)) return false;
+  return true;
 }
 
 function isCompletion(c: unknown): c is Completion {
   if (!isPlainObject(c)) return false;
   if (typeof c.habitId !== 'string') return false;
   if (typeof c.date !== 'string' || !ISO_DATE_RE.test(c.date)) return false;
-  // Legacy v1 records carried `done: boolean`; presence now means done, so drop explicit `done: false`.
   if ('done' in c && c.done === false) return false;
+  if ('count' in c && c.count !== undefined) {
+    if (typeof c.count !== 'number' || !Number.isFinite(c.count) || c.count <= 0) return false;
+  }
   return true;
 }
 
 type VersionedData = { version: number; [k: string]: unknown };
 
 // Forward-migration ladder. Each entry takes a payload of (claimed) version N and
-// returns a payload of version N+1. When bumping CURRENT_VERSION to 2, add a
-// `1: (d) => ({ ...d, version: 2, ...newShape })` step here.
+// returns a payload of version N+1. Empty: pre-release, so older payloads are
+// dropped via the corrupt-data backup path in loadInitial rather than migrated.
 const migrations: Record<number, (data: VersionedData) => VersionedData> = {};
 
 export function migrate(parsed: unknown): AppData | null {

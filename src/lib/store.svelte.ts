@@ -1,18 +1,40 @@
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
-import type { AppData, DayOfWeek, Habit } from './types';
+import type { AppData, CounterConfig, DayOfWeek, Habit } from './types';
 import { emptyAppData } from './types';
 import { newId } from './ids';
-import { isDueOn, normalizeDays } from './schedule';
+import { effectiveTarget, isDueOn, normalizeDays } from './schedule';
 import { selectedDate } from './selectedDate.svelte';
 import { STORAGE_KEY, loadInitial, migrate, save } from './storage';
+
+export type NewHabitInput =
+  | { type: 'binary'; name: string; days: DayOfWeek[]; startDate: string }
+  | {
+      type: 'counter';
+      name: string;
+      days: DayOfWeek[];
+      startDate: string;
+      counter: CounterConfig;
+    };
+
+export type HabitPatch = Partial<Pick<Habit, 'name' | 'schedule' | 'startDate'>> & {
+  counter?: CounterConfig;
+};
 
 class HabitStore {
   data: AppData = $state(emptyAppData());
   recoveryNotice = $state(false);
 
   donesByHabit = $derived.by(() => {
+    const byId = new SvelteMap<string, Habit>();
+    for (const h of this.data.habits) byId.set(h.id, h);
     const map = new SvelteMap<string, SvelteSet<string>>();
     for (const c of this.data.completions) {
+      const habit = byId.get(c.habitId);
+      if (!habit) continue;
+      if (habit.type === 'counter') {
+        const count = c.count ?? 0;
+        if (count < effectiveTarget(habit, c.date)) continue;
+      }
       let set = map.get(c.habitId);
       if (!set) {
         set = new SvelteSet();
@@ -66,19 +88,23 @@ class HabitStore {
     this.recoveryNotice = false;
   }
 
-  addHabit(name: string, days: DayOfWeek[], startDate: string): Habit {
-    const habit: Habit = {
+  addHabit(input: NewHabitInput): Habit {
+    const base = {
       id: newId(),
-      name: name.trim(),
-      schedule: { type: 'weekly_days', days: normalizeDays(days) },
-      startDate
+      name: input.name.trim(),
+      schedule: { type: 'weekly_days' as const, days: normalizeDays(input.days) },
+      startDate: input.startDate
     };
+    const habit: Habit =
+      input.type === 'counter'
+        ? { ...base, type: 'counter', counter: input.counter }
+        : { ...base, type: 'binary' };
     this.data.habits.push(habit);
     save(this.data);
     return habit;
   }
 
-  updateHabit(id: string, patch: Partial<Pick<Habit, 'name' | 'schedule' | 'startDate'>>): boolean {
+  updateHabit(id: string, patch: HabitPatch): boolean {
     const h = this.data.habits.find((x) => x.id === id);
     if (!h) return false;
     if (patch.name !== undefined) h.name = patch.name.trim();
@@ -91,6 +117,9 @@ class HabitStore {
       this.data.completions = this.data.completions.filter(
         (c) => c.habitId !== id || c.date >= newStart
       );
+    }
+    if (patch.counter !== undefined && h.type === 'counter') {
+      h.counter = patch.counter;
     }
     save(this.data);
     return true;
@@ -121,6 +150,24 @@ class HabitStore {
       this.data.completions.splice(idx, 1);
     }
     save(this.data);
+  }
+
+  setCount(habitId: string, date: string, count: number): void {
+    if (count < 0) count = 0;
+    const idx = this.data.completions.findIndex((c) => c.habitId === habitId && c.date === date);
+    if (count === 0) {
+      if (idx !== -1) this.data.completions.splice(idx, 1);
+    } else if (idx === -1) {
+      this.data.completions.push({ habitId, date, count });
+    } else {
+      this.data.completions[idx] = { habitId, date, count };
+    }
+    save(this.data);
+  }
+
+  getCount(habitId: string, date: string): number {
+    const c = this.data.completions.find((x) => x.habitId === habitId && x.date === date);
+    return c?.count ?? 0;
   }
 
   isDone(habitId: string, date: string): boolean {
