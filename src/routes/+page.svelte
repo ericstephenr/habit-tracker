@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Habit } from '$lib/types';
+  import type { Habit, Section } from '$lib/types';
   import { store } from '$lib/store.svelte';
   import { formatDateHeader, formatWeekday, todayISO } from '$lib/schedule';
   import { readBackup } from '$lib/storage';
@@ -8,33 +8,104 @@
   import HabitItem from '$lib/components/HabitItem.svelte';
   import AddHabitModal from '$lib/components/AddHabitModal.svelte';
   import DataModal from '$lib/components/DataModal.svelte';
+  import SectionHeader from '$lib/components/SectionHeader.svelte';
+  import SectionModal from '$lib/components/SectionModal.svelte';
   import IconPlus from '$lib/components/icons/IconPlus.svelte';
   import IconChevronLeft from '$lib/components/icons/IconChevronLeft.svelte';
   import IconChevronRight from '$lib/components/icons/IconChevronRight.svelte';
   import IconGear from '$lib/components/icons/IconGear.svelte';
   import Sortable from 'sortablejs';
+  import { SvelteMap } from 'svelte/reactivity';
 
   let modalOpen = $state(false);
   let dataModalOpen = $state(false);
   let editingHabit = $state<Habit | undefined>(undefined);
-  let ulRef: HTMLUListElement | undefined = $state();
+
+  let sectionModalOpen = $state(false);
+  let editingSection = $state<Section | undefined>(undefined);
+
+  let ungroupedUlRef: HTMLUListElement | undefined = $state();
+  let sectionsContainerRef: HTMLDivElement | undefined = $state();
+  const sectionUlMap = new SvelteMap<string, HTMLUListElement>();
+
+  const HABIT_SORTABLE_OPTS: Sortable.Options = {
+    group: 'habits',
+    animation: 150,
+    handle: '.drag-handle',
+    delay: 150,
+    delayOnTouchOnly: true,
+    onEnd: onHabitDragEnd
+  };
+
+  function readIds(ul: HTMLUListElement): string[] {
+    return [...ul.querySelectorAll<HTMLElement>(':scope > [data-id]')].map((el) => el.dataset.id!);
+  }
+
+  function readGroupsFromDom(): Array<{ sectionId: string | null; habitIds: string[] }> {
+    const groups: Array<{ sectionId: string | null; habitIds: string[] }> = [];
+    if (ungroupedUlRef) {
+      groups.push({ sectionId: null, habitIds: readIds(ungroupedUlRef) });
+    }
+    for (const section of store.data.sections) {
+      const ul = sectionUlMap.get(section.id);
+      if (ul) {
+        groups.push({ sectionId: section.id, habitIds: readIds(ul) });
+      } else {
+        groups.push({
+          sectionId: section.id,
+          habitIds: store.data.habits.filter((h) => h.sectionId === section.id).map((h) => h.id)
+        });
+      }
+    }
+    return groups;
+  }
+
+  function onHabitDragEnd(evt: Sortable.SortableEvent) {
+    const groups = readGroupsFromDom();
+    // Cross-list drag: SortableJS has moved evt.item from evt.from into evt.to.
+    // If we leave the node in place, Svelte's source-<ul> keyed-#each can't
+    // detach it (the tracked node's parent is now the destination) and the
+    // destination-<ul>'s keyed-#each creates a new <li> beside it — duplicating
+    // the habit in the DOM. Removing evt.item lets Svelte's destination #each
+    // create the canonical <li> cleanly during reactivity.
+    if (evt.from !== evt.to) evt.item.remove();
+    store.commitLayout(groups);
+  }
+
+  function registerSectionUl(node: HTMLUListElement, sectionId: string) {
+    sectionUlMap.set(sectionId, node);
+    const inst = Sortable.create(node, HABIT_SORTABLE_OPTS);
+    return {
+      destroy() {
+        sectionUlMap.delete(sectionId);
+        inst.destroy();
+      }
+    };
+  }
 
   $effect(() => {
-    if (!ulRef) return;
-    const s = Sortable.create(ulRef, {
+    if (!ungroupedUlRef) return;
+    const inst = Sortable.create(ungroupedUlRef, HABIT_SORTABLE_OPTS);
+    return () => inst.destroy();
+  });
+
+  $effect(() => {
+    if (!sectionsContainerRef) return;
+    const container = sectionsContainerRef;
+    const inst = Sortable.create(container, {
       animation: 150,
-      handle: '.drag-handle',
+      handle: '.section-drag-handle',
       delay: 150,
       delayOnTouchOnly: true,
-      onEnd(evt) {
-        if (evt.oldIndex === evt.newIndex) return;
-        const ids = [...ulRef!.querySelectorAll<HTMLElement>('[data-id]')].map(
-          (el) => el.dataset.id!
+      draggable: '[data-section-id]',
+      onEnd() {
+        const ids = [...container.querySelectorAll<HTMLElement>(':scope > [data-section-id]')].map(
+          (el) => el.dataset.sectionId!
         );
-        store.reorderHabits(ids);
+        store.reorderSections(ids);
       }
     });
-    return () => s.destroy();
+    return () => inst.destroy();
   });
 
   let overline = $derived(selectedDate.isToday ? 'Today' : selectedDate.isPast ? 'Past' : 'Future');
@@ -49,11 +120,25 @@
     modalOpen = true;
   }
 
+  function openAddSection() {
+    editingSection = undefined;
+    sectionModalOpen = true;
+  }
+
+  function openRename(s: Section) {
+    editingSection = s;
+    sectionModalOpen = true;
+  }
+
   function downloadBackup() {
     const raw = readBackup();
     if (!raw) return;
     downloadJson(`habit-tracker-backup-${todayISO()}.json`, raw);
   }
+
+  let hasStructure = $derived(store.hasAnyHabit || store.data.sections.length > 0);
+  let ungroupedGroup = $derived(store.dueGroups[0]);
+  let sectionGroups = $derived(store.dueGroups.slice(1));
 </script>
 
 <svelte:head>
@@ -163,26 +248,60 @@
     </div>
   </header>
 
-  {#if store.dueHabits.length > 0}
-    <ul bind:this={ulRef} class="space-y-2">
-      {#each store.dueHabits as habit (habit.id)}
+  {#if hasStructure}
+    <div class="mb-3 flex justify-end">
+      <button
+        type="button"
+        onclick={openAddSection}
+        class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200"
+        >+ Section</button
+      >
+    </div>
+
+    <ul
+      bind:this={ungroupedUlRef}
+      class="space-y-2 {ungroupedGroup.habits.length === 0 ? 'min-h-8' : ''}"
+    >
+      {#each ungroupedGroup.habits as habit (habit.id)}
         <li data-id={habit.id}>
           <HabitItem {habit} date={selectedDate.value} onEdit={openEdit} />
         </li>
       {/each}
     </ul>
-  {:else if store.hasAnyHabit}
-    <div
-      class="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500"
-    >
-      No habits scheduled for {formatWeekday(selectedDate.value)}.
-      {#if selectedDate.isToday}
-        Enjoy a rest day, or
-        <button type="button" onclick={openAdd} class="font-medium text-teal-700 hover:underline"
-          >add another habit</button
-        >.
-      {/if}
+
+    <div bind:this={sectionsContainerRef}>
+      {#each sectionGroups as group (group.section!.id)}
+        <section data-section-id={group.section!.id} class="mt-4">
+          <SectionHeader section={group.section!} onRename={openRename} />
+          {#if !group.section!.collapsed}
+            <ul
+              use:registerSectionUl={group.section!.id}
+              class="space-y-2 {group.habits.length === 0 ? 'min-h-8' : ''}"
+            >
+              {#each group.habits as habit (habit.id)}
+                <li data-id={habit.id}>
+                  <HabitItem {habit} date={selectedDate.value} onEdit={openEdit} />
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </section>
+      {/each}
     </div>
+
+    {#if store.dueHabits.length === 0 && store.hasAnyHabit}
+      <div
+        class="mt-4 rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500"
+      >
+        No habits scheduled for {formatWeekday(selectedDate.value)}.
+        {#if selectedDate.isToday}
+          Enjoy a rest day, or
+          <button type="button" onclick={openAdd} class="font-medium text-teal-700 hover:underline"
+            >add another habit</button
+          >.
+        {/if}
+      </div>
+    {/if}
   {:else}
     <div class="rounded-xl border border-dashed border-slate-300 p-8 text-center">
       <p class="mb-1 text-base font-medium text-slate-800">No habits yet</p>
@@ -207,4 +326,5 @@
 </button>
 
 <AddHabitModal bind:open={modalOpen} habit={editingHabit} />
+<SectionModal bind:open={sectionModalOpen} section={editingSection} />
 <DataModal bind:open={dataModalOpen} />

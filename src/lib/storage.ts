@@ -1,9 +1,17 @@
-import type { AppData, Completion, CounterConfig, DayOfWeek, Habit, Schedule } from './types';
+import type {
+  AppData,
+  Completion,
+  CounterConfig,
+  DayOfWeek,
+  Habit,
+  Schedule,
+  Section
+} from './types';
 import { emptyAppData } from './types';
 
 export const STORAGE_KEY = 'habit-tracker:v1';
 export const BACKUP_KEY = 'habit-tracker:backup';
-export const CURRENT_VERSION = 2 as const;
+export const CURRENT_VERSION = 3 as const;
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -47,6 +55,16 @@ function isHabit(h: unknown): h is Habit {
   if (h.type !== 'binary' && h.type !== 'counter') return false;
   if (h.type === 'counter' && !isCounterConfig(h.counter)) return false;
   if ('notes' in h && h.notes !== undefined && typeof h.notes !== 'string') return false;
+  if ('sectionId' in h && h.sectionId !== undefined && typeof h.sectionId !== 'string')
+    return false;
+  return true;
+}
+
+function isSection(s: unknown): s is Section {
+  if (!isPlainObject(s)) return false;
+  if (typeof s.id !== 'string' || s.id.length === 0) return false;
+  if (typeof s.name !== 'string') return false;
+  if (typeof s.collapsed !== 'boolean') return false;
   return true;
 }
 
@@ -64,9 +82,10 @@ function isCompletion(c: unknown): c is Completion {
 type VersionedData = { version: number; [k: string]: unknown };
 
 // Forward-migration ladder. Each entry takes a payload of (claimed) version N and
-// returns a payload of version N+1. Empty: pre-release, so older payloads are
-// dropped via the corrupt-data backup path in loadInitial rather than migrated.
-const migrations: Record<number, (data: VersionedData) => VersionedData> = {};
+// returns a payload of version N+1.
+const migrations: Record<number, (data: VersionedData) => VersionedData> = {
+  2: (d) => ({ ...d, version: 3, sections: [] })
+};
 
 export function migrate(parsed: unknown): AppData | null {
   if (!isPlainObject(parsed)) return null;
@@ -78,9 +97,20 @@ export function migrate(parsed: unknown): AppData | null {
     data = step(data);
   }
   if (data.version !== CURRENT_VERSION) return null;
-  const habits = Array.isArray(data.habits) ? data.habits.filter(isHabit) : [];
+  const sections = Array.isArray(data.sections) ? data.sections.filter(isSection) : [];
+  const validSectionIds = new Set(sections.map((s) => s.id));
+  const habits = (Array.isArray(data.habits) ? data.habits.filter(isHabit) : []).map((h) => {
+    // Drop sectionId references to sections that don't exist — keeps state
+    // internally consistent across imports.
+    if (h.sectionId !== undefined && !validSectionIds.has(h.sectionId)) {
+      const cleaned = { ...h };
+      delete cleaned.sectionId;
+      return cleaned;
+    }
+    return h;
+  });
   const completions = Array.isArray(data.completions) ? data.completions.filter(isCompletion) : [];
-  return { version: CURRENT_VERSION, habits, completions };
+  return { version: CURRENT_VERSION, habits, completions, sections };
 }
 
 function backupRaw(raw: string): void {

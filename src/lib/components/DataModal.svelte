@@ -68,10 +68,12 @@
     const nxt = result.data;
     pendingImport = nxt;
     confirmBody =
-      `Replace your ${cur.habits.length} habit${s(cur.habits.length)} and ` +
-      `${cur.completions.length} completion${s(cur.completions.length)} ` +
-      `with ${nxt.habits.length} habit${s(nxt.habits.length)} and ` +
-      `${nxt.completions.length} completion${s(nxt.completions.length)} from the file? ` +
+      `Replace your ${cur.habits.length} habit${s(cur.habits.length)}, ` +
+      `${cur.completions.length} completion${s(cur.completions.length)}, and ` +
+      `${cur.sections.length} section${s(cur.sections.length)} ` +
+      `with ${nxt.habits.length} habit${s(nxt.habits.length)}, ` +
+      `${nxt.completions.length} completion${s(nxt.completions.length)}, and ` +
+      `${nxt.sections.length} section${s(nxt.sections.length)} from the file? ` +
       `This cannot be undone.`;
     confirmOpen = true;
   }

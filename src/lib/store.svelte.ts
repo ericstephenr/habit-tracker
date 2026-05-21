@@ -1,5 +1,5 @@
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
-import type { AppData, CounterConfig, DayOfWeek, Habit } from './types';
+import type { AppData, CounterConfig, DayOfWeek, Habit, Section } from './types';
 import { emptyAppData } from './types';
 import { newId } from './ids';
 import { effectiveTarget, isDueOn, normalizeDays } from './schedule';
@@ -49,6 +49,27 @@ class HabitStore {
   dueHabits = $derived.by(() => {
     const date = selectedDate.value;
     return this.data.habits.filter((h) => isDueOn(h, date) && h.startDate <= date);
+  });
+
+  // Grouped view of dueHabits: the ungrouped bucket first, then each section in
+  // data.sections order. All section buckets render even when empty so headers
+  // persist and the UI always has a drop target.
+  dueGroups = $derived.by(() => {
+    const validSectionIds = new SvelteSet(this.data.sections.map((s) => s.id));
+    const bySection = new SvelteMap<string | null, Habit[]>();
+    bySection.set(null, []);
+    for (const s of this.data.sections) bySection.set(s.id, []);
+    for (const h of this.dueHabits) {
+      const key = h.sectionId && validSectionIds.has(h.sectionId) ? h.sectionId : null;
+      bySection.get(key)!.push(h);
+    }
+    const groups: Array<{ section: Section | null; habits: Habit[] }> = [
+      { section: null, habits: bySection.get(null) ?? [] }
+    ];
+    for (const s of this.data.sections) {
+      groups.push({ section: s, habits: bySection.get(s.id) ?? [] });
+    }
+    return groups;
   });
 
   doneCount = $derived.by(() => {
@@ -146,15 +167,77 @@ class HabitStore {
     return count;
   }
 
-  reorderHabits(newIds: string[]): void {
-    const visibleSet = new Set(newIds);
-    const byId = new Map(
-      this.data.habits.filter((h) => visibleSet.has(h.id)).map((h) => [h.id, h])
-    );
-    let i = 0;
-    this.data.habits = this.data.habits.map((h) =>
-      visibleSet.has(h.id) ? byId.get(newIds[i++])! : h
-    );
+  // One commit per drag end. `groups` is the new layout: each group is the
+  // ordered habit IDs for that bucket. `null` is the ungrouped bucket.
+  // Habits the UI didn't include (not due today) keep their existing
+  // sectionId & relative order and are appended at the end.
+  commitLayout(groups: Array<{ sectionId: string | null; habitIds: string[] }>): void {
+    const byId = new Map(this.data.habits.map((h) => [h.id, h]));
+    const next: Habit[] = [];
+    const seen = new SvelteSet<string>();
+    for (const g of groups) {
+      for (const id of g.habitIds) {
+        const h = byId.get(id);
+        if (!h || seen.has(id)) continue;
+        seen.add(id);
+        if (g.sectionId === null) {
+          if (h.sectionId !== undefined) delete h.sectionId;
+        } else {
+          h.sectionId = g.sectionId;
+        }
+        next.push(h);
+      }
+    }
+    for (const h of this.data.habits) if (!seen.has(h.id)) next.push(h);
+    this.data.habits = next;
+    save(this.data);
+  }
+
+  addSection(name: string): Section {
+    const section: Section = { id: newId(), name: name.trim(), collapsed: false };
+    this.data.sections.push(section);
+    save(this.data);
+    return section;
+  }
+
+  renameSection(id: string, name: string): boolean {
+    const s = this.data.sections.find((x) => x.id === id);
+    if (!s) return false;
+    s.name = name.trim();
+    save(this.data);
+    return true;
+  }
+
+  toggleSectionCollapsed(id: string): void {
+    const s = this.data.sections.find((x) => x.id === id);
+    if (!s) return;
+    s.collapsed = !s.collapsed;
+    save(this.data);
+  }
+
+  deleteSection(id: string): boolean {
+    const idx = this.data.sections.findIndex((s) => s.id === id);
+    if (idx === -1) return false;
+    this.data.sections.splice(idx, 1);
+    for (const h of this.data.habits) {
+      if (h.sectionId === id) delete h.sectionId;
+    }
+    save(this.data);
+    return true;
+  }
+
+  reorderSections(newIds: string[]): void {
+    const byId = new Map(this.data.sections.map((s) => [s.id, s]));
+    const reordered: Section[] = [];
+    const seen = new SvelteSet<string>();
+    for (const id of newIds) {
+      const s = byId.get(id);
+      if (!s || seen.has(id)) continue;
+      seen.add(id);
+      reordered.push(s);
+    }
+    for (const s of this.data.sections) if (!seen.has(s.id)) reordered.push(s);
+    this.data.sections = reordered;
     save(this.data);
   }
 
