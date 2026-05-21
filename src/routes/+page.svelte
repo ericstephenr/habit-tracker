@@ -7,7 +7,6 @@
   import HabitItem from '$lib/components/HabitItem.svelte';
   import AddHabitModal from '$lib/components/AddHabitModal.svelte';
   import IconPlus from '$lib/components/icons/IconPlus.svelte';
-  import IconGrip from '$lib/components/icons/IconGrip.svelte';
   import IconChevronLeft from '$lib/components/icons/IconChevronLeft.svelte';
   import IconChevronRight from '$lib/components/icons/IconChevronRight.svelte';
   import Sortable from 'sortablejs';
@@ -21,6 +20,8 @@
     const s = Sortable.create(ulRef, {
       animation: 150,
       handle: '.drag-handle',
+      delay: 150,
+      delayOnTouchOnly: true,
       onEnd(evt) {
         if (evt.oldIndex === evt.newIndex) return;
         const ids = [...ulRef!.querySelectorAll<HTMLElement>('[data-id]')].map(
@@ -159,11 +160,8 @@
   {#if store.dueHabits.length > 0}
     <ul bind:this={ulRef} class="space-y-2">
       {#each store.dueHabits as habit (habit.id)}
-        <li data-id={habit.id} class="flex items-center gap-2">
-          <IconGrip class="drag-handle h-5 w-5 shrink-0 cursor-grab touch-none text-slate-300" />
-          <div class="min-w-0 flex-1">
-            <HabitItem {habit} date={selectedDate.value} onEdit={openEdit} />
-          </div>
+        <li data-id={habit.id}>
+          <HabitItem {habit} date={selectedDate.value} onEdit={openEdit} />
         </li>
       {/each}
     </ul>

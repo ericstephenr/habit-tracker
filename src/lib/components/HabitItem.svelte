@@ -8,7 +8,7 @@
   import StreakBadge from './StreakBadge.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import IconCheck from './icons/IconCheck.svelte';
-  import IconKebab from './icons/IconKebab.svelte';
+  import IconGrip from './icons/IconGrip.svelte';
   import IconMinus from './icons/IconMinus.svelte';
   import IconPlus from './icons/IconPlus.svelte';
 
@@ -155,12 +155,12 @@
       bind:this={kebabRef}
       type="button"
       onclick={toggleMenu}
-      aria-label="Habit options"
+      aria-label="Habit options, drag to reorder"
       aria-haspopup="menu"
       aria-expanded={menuOpen}
-      class="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+      class="drag-handle flex h-8 w-8 cursor-grab touch-none items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
     >
-      <IconKebab class="h-5 w-5" />
+      <IconGrip class="h-5 w-5" />
     </button>
     {#if menuOpen}
       <div
