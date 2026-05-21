@@ -7,16 +7,17 @@ import { selectedDate } from './selectedDate.svelte';
 import { STORAGE_KEY, loadInitial, migrate, save } from './storage';
 
 export type NewHabitInput =
-  | { type: 'binary'; name: string; days: DayOfWeek[]; startDate: string }
+  | { type: 'binary'; name: string; days: DayOfWeek[]; startDate: string; notes?: string }
   | {
       type: 'counter';
       name: string;
       days: DayOfWeek[];
       startDate: string;
       counter: CounterConfig;
+      notes?: string;
     };
 
-export type HabitPatch = Partial<Pick<Habit, 'name' | 'schedule' | 'startDate'>> & {
+export type HabitPatch = Partial<Pick<Habit, 'name' | 'schedule' | 'startDate' | 'notes'>> & {
   counter?: CounterConfig;
 };
 
@@ -94,11 +95,13 @@ class HabitStore {
   }
 
   addHabit(input: NewHabitInput): Habit {
+    const trimmedNotes = input.notes?.trim();
     const base = {
       id: newId(),
       name: input.name.trim(),
       schedule: { type: 'weekly_days' as const, days: normalizeDays(input.days) },
-      startDate: input.startDate
+      startDate: input.startDate,
+      ...(trimmedNotes ? { notes: trimmedNotes } : {})
     };
     const habit: Habit =
       input.type === 'counter'
@@ -125,6 +128,11 @@ class HabitStore {
     }
     if (patch.counter !== undefined && h.type === 'counter') {
       h.counter = patch.counter;
+    }
+    if (patch.notes !== undefined) {
+      const trimmed = patch.notes.trim();
+      if (trimmed) h.notes = trimmed;
+      else delete h.notes;
     }
     save(this.data);
     return true;

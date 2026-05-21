@@ -46,6 +46,7 @@ function isHabit(h: unknown): h is Habit {
   if (!isSchedule(h.schedule)) return false;
   if (h.type !== 'binary' && h.type !== 'counter') return false;
   if (h.type === 'counter' && !isCounterConfig(h.counter)) return false;
+  if ('notes' in h && h.notes !== undefined && typeof h.notes !== 'string') return false;
   return true;
 }
 

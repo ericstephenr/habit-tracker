@@ -12,6 +12,7 @@
   let name = $state('');
   let selectedDays = $state<DayOfWeek[]>([0, 1, 2, 3, 4, 5, 6]);
   let startDate = $state('');
+  let notes = $state('');
   let inputEl: HTMLInputElement | null = $state(null);
   let interacted = $state(false);
   let saveError = $state('');
@@ -40,6 +41,7 @@
       name = habit.name;
       selectedDays = [...habit.schedule.days];
       startDate = habit.startDate;
+      notes = habit.notes ?? '';
       habitType = habit.type;
       if (habit.type === 'counter') {
         step = habit.counter.step;
@@ -73,6 +75,7 @@
       name = '';
       selectedDays = [0, 1, 2, 3, 4, 5, 6];
       startDate = selectedDate.value;
+      notes = '';
       habitType = 'binary';
       target = null;
       step = 1;
@@ -146,7 +149,8 @@
     const patch: HabitPatch = {
       name: name.trim(),
       schedule: { type: 'weekly_days', days: normalizeDays(selectedDays) },
-      startDate: newStartDate
+      startDate: newStartDate,
+      notes
     };
     if (habit.type === 'counter') {
       const counter = buildCounter();
@@ -179,10 +183,17 @@
     } else if (habitType === 'counter') {
       const counter = buildCounter();
       if (!counter) return;
-      store.addHabit({ type: 'counter', name: trimmed, days: selectedDays, startDate, counter });
+      store.addHabit({
+        type: 'counter',
+        name: trimmed,
+        days: selectedDays,
+        startDate,
+        counter,
+        notes
+      });
       close();
     } else {
-      store.addHabit({ type: 'binary', name: trimmed, days: selectedDays, startDate });
+      store.addHabit({ type: 'binary', name: trimmed, days: selectedDays, startDate, notes });
       close();
     }
   }
@@ -397,6 +408,17 @@
       </div>
     {/if}
   {/if}
+
+  <label class="mt-4 block">
+    <span class="text-sm font-medium text-slate-700">Notes</span>
+    <textarea
+      bind:value={notes}
+      oninput={() => (interacted = true)}
+      placeholder="Optional"
+      rows="3"
+      class="mt-1 block w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-200 focus:outline-none"
+    ></textarea>
+  </label>
 
   <p id="habit-modal-error" class="mt-3 min-h-[1.25rem] text-xs text-rose-600" aria-live="polite">
     {saveError || errorMessage}
