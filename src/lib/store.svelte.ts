@@ -133,6 +133,18 @@ class HabitStore {
     return count;
   }
 
+  reorderHabits(newIds: string[]): void {
+    const visibleSet = new Set(newIds);
+    const byId = new Map(
+      this.data.habits.filter((h) => visibleSet.has(h.id)).map((h) => [h.id, h])
+    );
+    let i = 0;
+    this.data.habits = this.data.habits.map((h) =>
+      visibleSet.has(h.id) ? byId.get(newIds[i++])! : h
+    );
+    save(this.data);
+  }
+
   deleteHabit(id: string): boolean {
     const idx = this.data.habits.findIndex((h) => h.id === id);
     if (idx === -1) return false;

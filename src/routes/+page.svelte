@@ -7,11 +7,30 @@
   import HabitItem from '$lib/components/HabitItem.svelte';
   import AddHabitModal from '$lib/components/AddHabitModal.svelte';
   import IconPlus from '$lib/components/icons/IconPlus.svelte';
+  import IconGrip from '$lib/components/icons/IconGrip.svelte';
   import IconChevronLeft from '$lib/components/icons/IconChevronLeft.svelte';
   import IconChevronRight from '$lib/components/icons/IconChevronRight.svelte';
+  import Sortable from 'sortablejs';
 
   let modalOpen = $state(false);
   let editingHabit = $state<Habit | undefined>(undefined);
+  let ulRef: HTMLUListElement | undefined = $state();
+
+  $effect(() => {
+    if (!ulRef) return;
+    const s = Sortable.create(ulRef, {
+      animation: 150,
+      handle: '.drag-handle',
+      onEnd(evt) {
+        if (evt.oldIndex === evt.newIndex) return;
+        const ids = [...ulRef!.querySelectorAll<HTMLElement>('[data-id]')].map(
+          (el) => el.dataset.id!
+        );
+        store.reorderHabits(ids);
+      }
+    });
+    return () => s.destroy();
+  });
 
   let overline = $derived(selectedDate.isToday ? 'Today' : selectedDate.isPast ? 'Past' : 'Future');
 
@@ -138,10 +157,13 @@
   </header>
 
   {#if store.dueHabits.length > 0}
-    <ul class="space-y-2">
+    <ul bind:this={ulRef} class="space-y-2">
       {#each store.dueHabits as habit (habit.id)}
-        <li>
-          <HabitItem {habit} date={selectedDate.value} onEdit={openEdit} />
+        <li data-id={habit.id} class="flex items-center gap-2">
+          <IconGrip class="drag-handle h-5 w-5 shrink-0 cursor-grab touch-none text-slate-300" />
+          <div class="min-w-0 flex-1">
+            <HabitItem {habit} date={selectedDate.value} onEdit={openEdit} />
+          </div>
         </li>
       {/each}
     </ul>
