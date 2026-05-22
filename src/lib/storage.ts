@@ -5,13 +5,14 @@ import type {
   DayOfWeek,
   Habit,
   Schedule,
-  Section
+  Section,
+  Todo
 } from './types';
 import { emptyAppData } from './types';
 
 export const STORAGE_KEY = 'habit-tracker:v1';
 export const BACKUP_KEY = 'habit-tracker:backup';
-export const CURRENT_VERSION = 3 as const;
+export const CURRENT_VERSION = 4 as const;
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -79,12 +80,23 @@ function isCompletion(c: unknown): c is Completion {
   return true;
 }
 
+function isTodo(t: unknown): t is Todo {
+  if (!isPlainObject(t)) return false;
+  if (typeof t.id !== 'string' || t.id.length === 0) return false;
+  if (typeof t.name !== 'string') return false;
+  if (typeof t.done !== 'boolean') return false;
+  if ('sectionId' in t && t.sectionId !== undefined && typeof t.sectionId !== 'string')
+    return false;
+  return true;
+}
+
 type VersionedData = { version: number; [k: string]: unknown };
 
 // Forward-migration ladder. Each entry takes a payload of (claimed) version N and
 // returns a payload of version N+1.
 const migrations: Record<number, (data: VersionedData) => VersionedData> = {
-  2: (d) => ({ ...d, version: 3, sections: [] })
+  2: (d) => ({ ...d, version: 3, sections: [] }),
+  3: (d) => ({ ...d, version: 4, todos: [] })
 };
 
 export function migrate(parsed: unknown): AppData | null {
@@ -110,7 +122,15 @@ export function migrate(parsed: unknown): AppData | null {
     return h;
   });
   const completions = Array.isArray(data.completions) ? data.completions.filter(isCompletion) : [];
-  return { version: CURRENT_VERSION, habits, completions, sections };
+  const todos = (Array.isArray(data.todos) ? data.todos.filter(isTodo) : []).map((t) => {
+    if (t.sectionId !== undefined && !validSectionIds.has(t.sectionId)) {
+      const cleaned = { ...t };
+      delete cleaned.sectionId;
+      return cleaned;
+    }
+    return t;
+  });
+  return { version: CURRENT_VERSION, habits, completions, sections, todos };
 }
 
 function backupRaw(raw: string): void {

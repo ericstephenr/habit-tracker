@@ -42,16 +42,25 @@ export type Section = {
   collapsed: boolean;
 };
 
+export type Todo = {
+  id: string;
+  name: string;
+  done: boolean;
+  sectionId?: string;
+};
+
 export type AppData = {
-  version: 3;
+  version: 4;
   habits: Habit[];
   completions: Completion[];
   sections: Section[];
+  todos: Todo[];
 };
 
 export const emptyAppData = (): AppData => ({
-  version: 3,
+  version: 4,
   habits: [],
   completions: [],
-  sections: []
+  sections: [],
+  todos: []
 });
