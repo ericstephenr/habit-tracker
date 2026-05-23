@@ -275,13 +275,33 @@
   <!-- Top bar -->
   <header class="top-bar" class:is-desktop={isDesktop}>
     {#if isDesktop}
-      <h1
-        style="margin: 0; font-family: var(--font-display); font-weight: 700;
-               font-size: 28px; letter-spacing: -0.8px; color: var(--ink);
-               line-height: 1;"
-      >
-        Habits<span style="color: var(--accent);">.</span>
-      </h1>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span
+          aria-hidden="true"
+          style="width: 28px; height: 28px; border-radius: 8px;
+                 background: var(--accent); color: var(--accent-on);
+                 box-shadow: 0 4px 12px var(--accent-glow);
+                 display: flex; align-items: center; justify-content: center;
+                 flex-shrink: 0;"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path
+              d="M3 7.5L5.5 10L11 4"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </span>
+        <h1
+          style="margin: 0; font-family: var(--font-display); font-weight: 700;
+                 font-size: 26px; letter-spacing: -0.8px; color: var(--ink);
+                 line-height: 1;"
+        >
+          Habit Tracker
+        </h1>
+      </div>
       <div style="flex: 1;"></div>
       {#if hasStructure}
         <button
@@ -504,16 +524,16 @@
         <div style="padding: 14px 16px 0;">
           <div style="padding: 4px 4px 14px;">
             <div
-              style="font-family: var(--font-display); font-weight: 600;
-                     font-size: 30px; line-height: 1.05; letter-spacing: -1.2px;
+              style="font-family: var(--font-display); font-weight: 700;
+                     font-size: var(--fs-display); line-height: 1.05; letter-spacing: -1.2px;
                      color: var(--ink);"
             >
-              Tasks
+              Tasks<span style="color: var(--accent);">.</span>
             </div>
             <div
-              style="margin-top: 6px; font-size: 12px; font-weight: 500;
+              style="margin-top: 6px; font-size: 12px; font-weight: 600;
                      letter-spacing: 0.2px; color: var(--ink-faint);
-                     font-variant-numeric: tabular-nums;"
+                     font-variant-numeric: tabular-nums; text-transform: uppercase;"
             >
               {store.data.todos.length === 0
                 ? 'A place for one-off to-dos.'
@@ -578,16 +598,25 @@
             </div>
           {/if}
 
-          <!-- DONE (N) bucket: all done tasks, flat -->
+          <!-- DONE bucket: all done tasks, flat -->
           {#if todosDone > 0}
             <div style="margin-top: 24px;">
               <div
-                style="padding: 0 4px 8px;
+                style="padding: 0 4px 10px;
                        font-family: var(--font-display); font-size: 11px; font-weight: 700;
-                       letter-spacing: 1.2px; text-transform: uppercase;
-                       color: var(--ink-faint);"
+                       letter-spacing: 1.4px; text-transform: uppercase;
+                       color: var(--ink-faint);
+                       display: flex; align-items: center; gap: 8px;"
               >
-                Done ({todosDone})
+                <span>Done</span>
+                <span
+                  style="padding: 2px 7px; border-radius: 99px;
+                         background: var(--surface-2); color: var(--ink-muted);
+                         font-size: 10px; letter-spacing: 0.4px;
+                         font-variant-numeric: tabular-nums;"
+                >
+                  {todosDone}
+                </span>
               </div>
               <div style="display: flex; flex-direction: column; gap: 8px;">
                 {#each allDoneTodos as todo (todo.id)}

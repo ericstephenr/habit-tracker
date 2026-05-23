@@ -2,19 +2,23 @@
   import { selectedDate } from '$lib/selectedDate.svelte';
   import { currentDate } from '$lib/currentDate.svelte';
   import { store } from '$lib/store.svelte';
-  import { smartDateTitle, formatMonthDay } from '$lib/schedule';
+  import { smartDateTitle, formatMonthDay, formatWeekday } from '$lib/schedule';
 
   let title = $derived(smartDateTitle(selectedDate.value, currentDate.value));
   let isRelative = $derived(['Today', 'Yesterday', 'Tomorrow'].includes(title));
   let isFuture = $derived(selectedDate.value > currentDate.value);
   let subtitle = $derived.by(() => {
     const md = formatMonthDay(selectedDate.value);
-    if (isRelative) return md;
-    return isFuture ? `${md} · upcoming` : `${md} · past`;
+    const wd = formatWeekday(selectedDate.value);
+    // Relative title ("Today/Yesterday/Tomorrow") hides the date — subtitle shows date + weekday.
+    // Absolute title already includes the date — subtitle shows weekday + temporal context.
+    const head = isRelative ? `${md} · ${wd}` : wd;
+    if (selectedDate.isToday) return head;
+    return `${head} · ${isFuture ? 'upcoming' : 'past'}`;
   });
   let complete = $derived(store.totalCount > 0 && store.doneCount === store.totalCount);
-  let statusText = $derived(
-    complete ? 'nice work — day complete' : isFuture ? 'scheduled' : 'done so far'
+  let pct = $derived(
+    store.totalCount > 0 ? Math.round((store.doneCount / store.totalCount) * 100) : 0
   );
 
   function jumpToday() {
@@ -25,20 +29,20 @@
 <div style="padding: 0 20px; margin-top: 14px;">
   <div
     style="display: flex; align-items: baseline; justify-content: space-between;
-           margin-bottom: 12px; gap: 12px;"
+           margin-bottom: 14px; gap: 12px;"
   >
     <div style="min-width: 0; flex: 1;">
       <div
-        style="font-family: var(--font-display); font-weight: 600;
-               font-size: 30px; line-height: 1; letter-spacing: -1.2px;
+        style="font-family: var(--font-display); font-weight: 700;
+               font-size: var(--fs-display); line-height: 1; letter-spacing: -1.2px;
                color: var(--ink);"
       >
-        {title}
+        {title}<span style="color: var(--accent);">.</span>
       </div>
       <div
-        style="margin-top: 6px; font-size: 12px; font-weight: 500;
+        style="margin-top: 6px; font-size: 12px; font-weight: 600;
                letter-spacing: 0.2px; color: var(--ink-faint);
-               font-variant-numeric: tabular-nums;"
+               font-variant-numeric: tabular-nums; text-transform: uppercase;"
       >
         {subtitle}
       </div>
@@ -49,7 +53,7 @@
       aria-hidden={selectedDate.isToday}
       tabindex={selectedDate.isToday ? -1 : 0}
       style="visibility: {selectedDate.isToday ? 'hidden' : 'visible'};
-             background: var(--accent-soft); color: var(--accent-deep);
+             background: var(--accent-soft); color: var(--accent-ink);
              border: 0; padding: 6px 12px; border-radius: 99px;
              font-family: var(--font-body); font-size: 12px; font-weight: 600;
              cursor: pointer; white-space: nowrap;
@@ -63,18 +67,19 @@
     <div
       class="ht-card"
       style="background: {complete ? 'var(--accent)' : 'var(--surface)'};
-             border-radius: 18px; padding: 16px 18px;
-             box-shadow: {complete
-        ? '0 12px 32px var(--accent-glow)'
-        : '0 4px 14px rgba(20, 12, 40, 0.05)'};
+             background-image: {complete
+        ? 'linear-gradient(135deg, var(--accent-deep) 0%, var(--accent) 100%)'
+        : 'none'};
+             border-radius: var(--r-xl); padding: 16px 18px;
+             box-shadow: {complete ? '0 14px 36px var(--accent-glow)' : 'var(--shadow-1)'};
              border: {complete ? 'none' : '1px solid var(--line)'};
              transition: all 360ms cubic-bezier(.2,.8,.2,1);"
     >
       <div
         style="display: flex; align-items: baseline; justify-content: space-between;
-               margin-bottom: 10px;"
+               gap: 12px;"
       >
-        <div style="display: flex; align-items: baseline; gap: 6px;">
+        <div style="display: flex; align-items: baseline; gap: 6px; min-width: 0;">
           <span
             style="font-family: var(--font-display); font-weight: 700;
                    font-size: 36px; line-height: 1; letter-spacing: -1.5px;
@@ -84,45 +89,63 @@
             {store.doneCount}
           </span>
           <span
-            style="font-family: var(--font-display); font-weight: 500;
+            style="font-family: var(--font-display); font-weight: 600;
                    font-size: 18px;
                    color: {complete ? 'rgba(255,255,255,0.7)' : 'var(--ink-muted)'};
                    font-variant-numeric: tabular-nums;"
           >
             / {store.totalCount}
           </span>
-          <span
-            style="margin-left: 6px; font-size: 12px; font-weight: 500;
-                   color: {complete ? 'rgba(255,255,255,0.85)' : 'var(--ink-muted)'};"
-          >
-            {statusText}
-          </span>
         </div>
+        <span
+          style="font-family: var(--font-display); font-weight: 700;
+                 font-size: 28px; line-height: 1; letter-spacing: -1.2px;
+                 color: {complete ? 'var(--accent-on)' : 'var(--ink)'};
+                 font-variant-numeric: tabular-nums; flex-shrink: 0;"
+        >
+          {pct}<span
+            style="font-size: 18px; font-weight: 600; margin-left: 1px;
+                   color: {complete ? 'rgba(255,255,255,0.7)' : 'var(--ink-muted)'};">%</span
+          >
+        </span>
       </div>
       <div
-        role="progressbar"
-        aria-valuemin="0"
-        aria-valuemax="100"
-        aria-valuenow={store.progressPct}
-        aria-label="{store.doneCount} of {store.totalCount} habits complete"
-        style="height: 10px; border-radius: 99px;
-               background: {complete ? 'rgba(255,255,255,0.25)' : 'var(--surface-2)'};
-               overflow: hidden; position: relative;"
+        style="margin-top: 4px; font-size: 13px; font-weight: 600;
+               color: {complete ? 'rgba(255,255,255,0.9)' : 'var(--ink-muted)'};
+               letter-spacing: 0.1px;"
       >
-        <div
-          style="position: absolute; inset: 0;
-                 width: {store.progressPct}%;
-                 background: {complete ? 'rgba(255,255,255,0.95)' : 'var(--accent)'};
-                 border-radius: 99px;
-                 transition: width 420ms cubic-bezier(.2,.8,.2,1);
-                 box-shadow: {complete ? 'none' : '0 2px 8px var(--accent-glow)'};"
-        ></div>
+        {complete
+          ? '✨ Day complete — nice work'
+          : isFuture
+            ? 'scheduled'
+            : `${store.totalCount - store.doneCount} to go`}
       </div>
+      {#if !isFuture}
+        <div
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow={store.progressPct}
+          aria-label="{store.doneCount} of {store.totalCount} habits complete"
+          style="margin-top: 12px; height: 8px; border-radius: 99px;
+                 background: {complete ? 'rgba(255,255,255,0.25)' : 'var(--surface-3)'};
+                 overflow: hidden; position: relative;"
+        >
+          <div
+            style="position: absolute; inset: 0;
+                   width: {store.progressPct}%;
+                   background: {complete ? 'rgba(255,255,255,0.95)' : 'var(--accent)'};
+                   border-radius: 99px;
+                   transition: width 420ms cubic-bezier(.2,.8,.2,1);
+                   box-shadow: {complete ? 'none' : '0 2px 8px var(--accent-glow)'};"
+          ></div>
+        </div>
+      {/if}
     </div>
   {:else if !isFuture && store.hasAnyHabit}
     <div
       style="padding: 20px; background: var(--surface);
-             border-radius: 18px; border: 1px dashed var(--line-strong);
+             border-radius: var(--r-xl); border: 1px dashed var(--line-strong);
              font-family: var(--font-body); font-size: 14px;
              color: var(--ink-muted); text-align: center;"
     >

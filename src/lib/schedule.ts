@@ -92,22 +92,23 @@ const MONTH_SHORT = [
   'Nov',
   'Dec'
 ] as const;
-const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 
 export function formatMonthDay(dateISO: string): string {
   const d = parseISO(dateISO);
   return `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
 }
 
-// Returns "Today" / "Yesterday" / "Tomorrow" / "Wed, May 21" given a date and
+// Returns "Today" / "Yesterday" / "Tomorrow" / "May 21" given a date and
 // real-today reference. The relative label is reserved for the immediate window
-// only — anything further out falls back to the weekday + month/day form.
+// only — anything further out falls back to the month/day form. The weekday
+// is intentionally left out of the title to avoid duplicating the uppercase
+// weekday that the ProgressHero subtitle already shows.
 export function smartDateTitle(dateISO: string, todayISO: string): string {
   if (dateISO === todayISO) return 'Today';
   if (dateISO === previousDay(todayISO)) return 'Yesterday';
   if (dateISO === nextDay(todayISO)) return 'Tomorrow';
   const d = parseISO(dateISO);
-  return `${DAY_SHORT[d.getDay()]}, ${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
+  return `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
 }
 
 export const DAY_LETTERS: ReadonlyArray<string> = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];

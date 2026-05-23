@@ -63,11 +63,13 @@
 
   <div
     class="ht-card"
-    style="background: var(--surface); border-radius: var(--r-lg);
-           border: 1px solid {done ? 'transparent' : 'var(--line)'};
+    style="background: {done ? 'var(--accent-fill)' : 'var(--surface)'}; border-radius: var(--r-lg);
+           border: 1px solid {done ? 'var(--accent-soft)' : 'var(--line)'};
            box-shadow: var(--shadow-1);
            overflow: hidden; position: relative;
-           transition: border-color var(--t-normal) var(--ease-out), box-shadow var(--t-normal) var(--ease-out);"
+           transition: background var(--t-normal) var(--ease-out),
+                       border-color var(--t-normal) var(--ease-out),
+                       box-shadow var(--t-normal) var(--ease-out);"
   >
     <div
       style="display: flex; align-items: center; gap: var(--card-gap); padding: var(--card-pad);"
@@ -164,42 +166,41 @@
         </span>
       {/if}
 
-      <!-- Counter ± controls -->
+      <!-- Counter ± controls — unified pill -->
       {#if habit.type === 'counter'}
-        <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+        <div
+          style="display: flex; align-items: center; flex-shrink: 0;
+                 background: var(--surface-2); border-radius: 9999px; padding: 3px;"
+        >
           <button
             type="button"
             onclick={dec}
             disabled={isFuture || count === 0}
             aria-label={`Decrease ${habit.name} by ${habit.counter.step}${unitSuffix}`}
-            style="width: 38px; height: 28px; border: 0; background: transparent; padding: 0 5px;
+            style="width: 26px; height: 26px; border: 0; padding: 0;
+                   background: transparent; border-radius: 9999px;
                    color: var(--ink-muted); cursor: pointer;
                    display: flex; align-items: center; justify-content: center;
-                   opacity: {isFuture || count === 0 ? 0.3 : 1};"
+                   opacity: {isFuture || count === 0 ? 0.35 : 1};
+                   transition: opacity var(--t-quick) var(--ease-out);"
           >
-            <span
-              style="width: 28px; height: 28px; border-radius: var(--r-sm);
-                     background: var(--surface-2);
-                     display: flex; align-items: center; justify-content: center;"
-            >
-              <IconMinus class="h-3.5 w-3.5" />
-            </span>
+            <IconMinus class="h-3.5 w-3.5" />
           </button>
           <span
             aria-live="polite"
-            style="display: inline-flex; flex-direction: column; align-items: center;
-                   padding: 0 6px; text-align: center; min-width: 60px; line-height: 1;"
+            style="padding: 0 8px; min-width: 56px; text-align: center;
+                   display: inline-flex; flex-direction: column; align-items: center; line-height: 1;"
           >
             <span
-              style="font-family: var(--font-display); font-size: 12px; font-weight: 600;
+              style="font-family: var(--font-display); font-size: 13px; font-weight: 700;
                      color: var(--ink); font-variant-numeric: tabular-nums;"
             >
-              {count}<span style="color: var(--ink-faint); font-weight: 500;">/{target}</span>
+              {count}<span style="color: var(--ink-faint); font-weight: 600;">/{target}</span>
             </span>
             {#if habit.counter.unit}
               <span
-                style="margin-top: 2px; font-size: 10px; font-weight: 500; color: var(--ink-faint);
-                       text-transform: lowercase; letter-spacing: 0.3px;"
+                style="margin-top: 2px; font-size: 9px; font-weight: 600; color: var(--ink-faint);
+                       text-transform: uppercase; letter-spacing: 0.5px;"
               >
                 {habit.counter.unit}
               </span>
@@ -210,18 +211,14 @@
             onclick={inc}
             disabled={isFuture}
             aria-label={`Increase ${habit.name} by ${habit.counter.step}${unitSuffix}`}
-            style="width: 38px; height: 28px; border: 0; background: transparent; padding: 0 5px;
+            style="width: 26px; height: 26px; border: 0; padding: 0;
+                   background: transparent; border-radius: 9999px;
                    color: var(--ink-muted); cursor: pointer;
                    display: flex; align-items: center; justify-content: center;
-                   opacity: {isFuture ? 0.3 : 1};"
+                   opacity: {isFuture ? 0.35 : 1};
+                   transition: opacity var(--t-quick) var(--ease-out);"
           >
-            <span
-              style="width: 28px; height: 28px; border-radius: var(--r-sm);
-                     background: var(--surface-2);
-                     display: flex; align-items: center; justify-content: center;"
-            >
-              <IconPlus class="h-3.5 w-3.5" />
-            </span>
+            <IconPlus class="h-3.5 w-3.5" />
           </button>
         </div>
       {/if}

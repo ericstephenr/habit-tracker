@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Section } from '$lib/types';
   import { store } from '$lib/store.svelte';
+  import IconCheck from './icons/IconCheck.svelte';
   import IconChevron from './icons/IconChevron.svelte';
   import IconGrip from './icons/IconGrip.svelte';
 
@@ -43,9 +44,9 @@
   onclick={toggleCollapsed}
   onkeydown={onRowKey}
   style="display: flex; align-items: center; gap: 8px;
-         padding: 6px 4px 8px;
+         padding: 8px 4px 10px;
          border-bottom: 1px solid var(--line);
-         margin-bottom: 8px;
+         margin-bottom: 10px;
          cursor: pointer;
          user-select: none;"
 >
@@ -54,19 +55,24 @@
   </span>
   <span
     style="font-family: var(--font-display); font-weight: 700;
-           font-size: var(--fs-meta); letter-spacing: 1.2px; text-transform: uppercase;
+           font-size: 13px; letter-spacing: 1.4px; text-transform: uppercase;
            color: var(--ink);"
   >
     {section.name}
   </span>
   {#if totalCount > 0}
     <span
-      style="font-family: var(--font-display); font-size: var(--fs-overline); font-weight: 700;
-             color: {allDone ? 'var(--accent-deep)' : 'var(--ink-faint)'};
-             background: {allDone ? 'var(--accent-soft)' : 'var(--surface-2)'};
-             padding: 2px 8px; border-radius: var(--r-pill);
-             font-variant-numeric: tabular-nums; letter-spacing: 0.2px;"
+      style="display: inline-flex; align-items: center; gap: 4px;
+             font-family: var(--font-display); font-size: 11px; font-weight: 700;
+             color: {allDone ? 'var(--accent-on)' : 'var(--ink-faint)'};
+             background: {allDone ? 'var(--accent)' : 'var(--surface-2)'};
+             padding: {allDone ? '2px 7px 2px 5px' : '2px 8px'};
+             border-radius: var(--r-pill); font-variant-numeric: tabular-nums;
+             letter-spacing: 0.2px; line-height: 1.4;"
     >
+      {#if allDone}
+        <IconCheck class="h-2.5 w-2.5" />
+      {/if}
       {doneCount}/{totalCount}
     </span>
   {/if}

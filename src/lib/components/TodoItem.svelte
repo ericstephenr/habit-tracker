@@ -15,11 +15,15 @@
 
 <div
   class="ht-card"
-  style="background: var(--surface); border-radius: var(--r-lg);
-         border: 1px solid {todo.done ? 'transparent' : 'var(--line)'};
+  style="background: {todo.done
+    ? 'var(--accent-fill)'
+    : 'var(--surface)'}; border-radius: var(--r-lg);
+         border: 1px solid {todo.done ? 'var(--accent-soft)' : 'var(--line)'};
          box-shadow: var(--shadow-1);
          display: flex; align-items: center; gap: var(--card-gap); padding: var(--card-pad);
-         transition: border-color var(--t-normal) var(--ease-out), box-shadow var(--t-normal) var(--ease-out);"
+         transition: background var(--t-normal) var(--ease-out),
+                     border-color var(--t-normal) var(--ease-out),
+                     box-shadow var(--t-normal) var(--ease-out);"
 >
   <button
     type="button"
