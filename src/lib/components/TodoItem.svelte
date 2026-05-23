@@ -18,7 +18,7 @@
   style="background: var(--surface); border-radius: var(--r-lg);
          border: 1px solid {todo.done ? 'transparent' : 'var(--line)'};
          box-shadow: var(--shadow-1);
-         display: flex; align-items: center; gap: 12px; padding: 14px;
+         display: flex; align-items: center; gap: var(--card-gap); padding: var(--card-pad);
          transition: border-color var(--t-normal) var(--ease-out), box-shadow var(--t-normal) var(--ease-out);"
 >
   <button
@@ -29,7 +29,7 @@
     onpointerleave={() => (pressed = false)}
     aria-pressed={todo.done}
     aria-label={todo.done ? `Mark ${todo.name} not done` : `Mark ${todo.name} done`}
-    style="width: 28px; height: 28px; border-radius: var(--r-sm);
+    style="width: var(--card-ctrl); height: var(--card-ctrl); border-radius: var(--r-sm);
            flex-shrink: 0; border: 0; padding: 0;
            background: {todo.done ? 'var(--accent)' : 'var(--surface-2)'};
            color: {todo.done ? 'var(--accent-on)' : 'transparent'};
@@ -69,7 +69,7 @@
     class="drag-handle"
     onclick={() => onEdit(todo)}
     aria-label={`Edit ${todo.name}`}
-    style="width: 28px; height: 28px; border: 0; background: transparent; padding: 0;
+    style="width: var(--card-ctrl); height: var(--card-ctrl); border: 0; background: transparent; padding: 0;
            color: var(--ink-faint); cursor: pointer; flex-shrink: 0;
            display: flex; align-items: center; justify-content: center;
            border-radius: var(--r-pill); touch-action: none;

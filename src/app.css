@@ -24,6 +24,11 @@
   --fs-display: 30px;
   --fs-hero: 36px;
 
+  /* Card sizing (scales up on desktop) */
+  --card-pad: 14px;
+  --card-gap: 12px;
+  --card-ctrl: 28px;
+
   /* Shadows */
   --shadow-1: 0 2px 8px rgba(20, 12, 40, 0.05);
   --shadow-2: 0 8px 22px rgba(20, 12, 40, 0.08);
@@ -57,6 +62,23 @@
 
   --danger: oklch(0.58 0.2 25);
   --danger-soft: oklch(0.95 0.04 25);
+}
+
+/* ── Desktop scale-up ────────────────────────────────────────── */
+@media (min-width: 1024px) {
+  :root {
+    --fs-overline: 12px;
+    --fs-meta: 13px;
+    --fs-body: 15px;
+    --fs-input: 18px;
+    --fs-title: 20px;
+    --fs-display: 34px;
+    --fs-hero: 42px;
+    --r-lg: 20px;
+    --card-pad: 20px;
+    --card-gap: 16px;
+    --card-ctrl: 32px;
+  }
 }
 
 /* ── Accent variants ─────────────────────────────────────────── */

@@ -277,7 +277,7 @@
     {#if isDesktop}
       <h1
         style="margin: 0; font-family: var(--font-display); font-weight: 700;
-               font-size: 24px; letter-spacing: -0.8px; color: var(--ink);
+               font-size: 28px; letter-spacing: -0.8px; color: var(--ink);
                line-height: 1;"
       >
         Habits<span style="color: var(--accent);">.</span>
@@ -289,12 +289,12 @@
           onclick={openAdd}
           aria-label="Add habit"
           style="display: inline-flex; align-items: center; gap: 6px;
-                 padding: 8px 14px 8px 12px; border: 0; border-radius: 99px;
+                 padding: 10px 16px 10px 14px; border: 0; border-radius: 99px;
                  background: var(--accent); color: var(--accent-on);
-                 font-family: var(--font-display); font-size: 12px; font-weight: 600;
+                 font-family: var(--font-display); font-size: 14px; font-weight: 600;
                  cursor: pointer; box-shadow: 0 4px 14px var(--accent-glow);"
         >
-          <IconPlus class="h-3.5 w-3.5" />
+          <IconPlus class="h-4 w-4" />
           New habit
         </button>
       {/if}
@@ -302,14 +302,14 @@
         type="button"
         onclick={() => (dataModalOpen = true)}
         aria-label="Open settings"
-        style="width: 36px; height: 36px; border: 0; border-radius: var(--r-pill);
+        style="width: 40px; height: 40px; border: 0; border-radius: var(--r-pill);
                background: var(--surface-2); color: var(--ink-muted);
                display: flex; align-items: center; justify-content: center;
                cursor: pointer; flex-shrink: 0;
                transition: background var(--t-quick) var(--ease-out),
                            color var(--t-quick) var(--ease-out);"
       >
-        <IconGear class="h-4 w-4" />
+        <IconGear class="h-[18px] w-[18px]" />
       </button>
     {:else}
       <button
@@ -632,7 +632,7 @@
   }
   .top-bar.is-desktop {
     padding: 20px 32px 8px;
-    max-width: 1180px;
+    max-width: 1412px;
     margin: 0 auto;
     width: 100%;
     box-sizing: border-box;
@@ -699,16 +699,17 @@
 
   @media (min-width: 1024px) {
     .app-main {
-      max-width: 1180px;
+      max-width: 1412px;
       margin: 0 auto;
       display: grid;
-      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+      grid-template-columns: minmax(666px, 1fr) minmax(666px, 1fr);
       gap: 32px;
       padding: 0 24px calc(env(safe-area-inset-bottom) + 120px);
     }
     .habits-pane {
       max-width: none;
       margin: 0;
+      padding-right: 24px;
     }
     .tasks-pane {
       max-width: none;

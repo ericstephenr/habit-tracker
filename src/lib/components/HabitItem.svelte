@@ -69,7 +69,9 @@
            overflow: hidden; position: relative;
            transition: border-color var(--t-normal) var(--ease-out), box-shadow var(--t-normal) var(--ease-out);"
   >
-    <div style="display: flex; align-items: center; gap: 12px; padding: 14px;">
+    <div
+      style="display: flex; align-items: center; gap: var(--card-gap); padding: var(--card-pad);"
+    >
       <!-- Checkbox: binary = rounded square; counter = circle with water-fill -->
       <button
         type="button"
@@ -84,7 +86,7 @@
           : done
             ? `Mark ${habit.name} not done`
             : `Mark ${habit.name} done`}
-        style="width: 28px; height: 28px;
+        style="width: var(--card-ctrl); height: var(--card-ctrl);
                border-radius: {habit.type === 'counter' ? '9999px' : 'var(--r-sm)'};
                flex-shrink: 0; border: 0; padding: 0;
                background: {done ? 'var(--accent)' : 'var(--surface-2)'};
@@ -230,7 +232,7 @@
         class="drag-handle"
         onclick={() => onEdit(habit)}
         aria-label={`Edit ${habit.name}`}
-        style="width: 28px; height: 28px; border: 0; background: transparent; padding: 0;
+        style="width: var(--card-ctrl); height: var(--card-ctrl); border: 0; background: transparent; padding: 0;
                color: var(--ink-faint); cursor: pointer; flex-shrink: 0;
                display: flex; align-items: center; justify-content: center;
                border-radius: var(--r-pill);
@@ -254,7 +256,7 @@
       <div
         id="habit-notes-{habit.id}"
         transition:slide={{ duration: 200 }}
-        style="padding: 0 14px 14px 52px;
+        style="padding: 0 var(--card-pad) var(--card-pad) calc(var(--card-pad) + var(--card-ctrl) + var(--card-gap));
                font-size: var(--fs-body); color: var(--ink-muted);
                white-space: pre-wrap; line-height: 1.5;"
       >
