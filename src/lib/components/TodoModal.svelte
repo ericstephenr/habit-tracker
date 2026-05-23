@@ -9,14 +9,12 @@
   let { open = $bindable(false), todo }: { open?: boolean; todo?: Todo } = $props();
 
   let name = $state('');
-  let sectionId = $state<string | ''>('');
   let interacted = $state(false);
   let confirmDeleteOpen = $state(false);
 
   $effect(() => {
     if (!open) return;
     name = todo?.name ?? '';
-    sectionId = todo?.sectionId ?? '';
     interacted = false;
     confirmDeleteOpen = false;
   });
@@ -28,25 +26,13 @@
     open = false;
   }
 
-  function applySection(t: Todo) {
-    if (sectionId) t.sectionId = sectionId;
-    else delete t.sectionId;
-  }
-
   function save() {
     interacted = true;
     if (!canSave) return;
     if (todo) {
       store.renameTodo(todo.id, name);
-      const live = store.data.todos.find((x) => x.id === todo.id);
-      if (live) {
-        applySection(live);
-        store.replaceAll(store.data);
-      }
     } else {
-      const newT = store.addTodo(name);
-      applySection(newT);
-      store.replaceAll(store.data);
+      store.addTodo(name);
     }
     close();
   }
@@ -94,22 +80,6 @@
         onblur={onFieldBlur}
       />
     </Field>
-
-    {#if store.data.sections.length > 0}
-      <Field label="Section">
-        <select
-          bind:value={sectionId}
-          onfocus={onFieldFocus}
-          onblur={onFieldBlur}
-          style="{inputStyle} cursor: pointer; appearance: none;"
-        >
-          <option value="">— No section —</option>
-          {#each store.data.sections as s (s.id)}
-            <option value={s.id}>{s.name}</option>
-          {/each}
-        </select>
-      </Field>
-    {/if}
 
     <div
       role="alert"

@@ -12,7 +12,7 @@ import { emptyAppData } from './types';
 
 export const STORAGE_KEY = 'habit-tracker:v1';
 export const BACKUP_KEY = 'habit-tracker:backup';
-export const CURRENT_VERSION = 4 as const;
+export const CURRENT_VERSION = 5 as const;
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -85,8 +85,6 @@ function isTodo(t: unknown): t is Todo {
   if (typeof t.id !== 'string' || t.id.length === 0) return false;
   if (typeof t.name !== 'string') return false;
   if (typeof t.done !== 'boolean') return false;
-  if ('sectionId' in t && t.sectionId !== undefined && typeof t.sectionId !== 'string')
-    return false;
   return true;
 }
 
@@ -96,7 +94,8 @@ type VersionedData = { version: number; [k: string]: unknown };
 // returns a payload of version N+1.
 const migrations: Record<number, (data: VersionedData) => VersionedData> = {
   2: (d) => ({ ...d, version: 3, sections: [] }),
-  3: (d) => ({ ...d, version: 4, todos: [] })
+  3: (d) => ({ ...d, version: 4, todos: [] }),
+  4: (d) => ({ ...d, version: 5 })
 };
 
 export function migrate(parsed: unknown): AppData | null {
@@ -123,9 +122,9 @@ export function migrate(parsed: unknown): AppData | null {
   });
   const completions = Array.isArray(data.completions) ? data.completions.filter(isCompletion) : [];
   const todos = (Array.isArray(data.todos) ? data.todos.filter(isTodo) : []).map((t) => {
-    if (t.sectionId !== undefined && !validSectionIds.has(t.sectionId)) {
+    if ('sectionId' in t) {
       const cleaned = { ...t };
-      delete cleaned.sectionId;
+      delete (cleaned as { sectionId?: string }).sectionId;
       return cleaned;
     }
     return t;

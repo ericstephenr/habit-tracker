@@ -72,24 +72,6 @@ class HabitStore {
     return groups;
   });
 
-  todoGroups = $derived.by(() => {
-    const validSectionIds = new SvelteSet(this.data.sections.map((s) => s.id));
-    const bySection = new SvelteMap<string | null, Todo[]>();
-    bySection.set(null, []);
-    for (const s of this.data.sections) bySection.set(s.id, []);
-    for (const t of this.data.todos) {
-      const key = t.sectionId && validSectionIds.has(t.sectionId) ? t.sectionId : null;
-      bySection.get(key)!.push(t);
-    }
-    const groups: Array<{ section: Section | null; todos: Todo[] }> = [
-      { section: null, todos: bySection.get(null) ?? [] }
-    ];
-    for (const s of this.data.sections) {
-      groups.push({ section: s, todos: bySection.get(s.id) ?? [] });
-    }
-    return groups;
-  });
-
   doneCount = $derived.by(() => {
     const date = selectedDate.value;
     return this.dueHabits.filter((h) => this.isDone(h.id, date)).length;
@@ -240,9 +222,6 @@ class HabitStore {
     for (const h of this.data.habits) {
       if (h.sectionId === id) delete h.sectionId;
     }
-    for (const t of this.data.todos) {
-      if (t.sectionId === id) delete t.sectionId;
-    }
     save(this.data);
     return true;
   }
@@ -347,25 +326,15 @@ class HabitStore {
     return true;
   }
 
-  // Parallel to commitLayout, but for todos. Each group's todoIds becomes the new
-  // ordering for that bucket; todos the UI didn't include keep their sectionId &
-  // relative order and are appended at the end.
-  commitTodoLayout(groups: Array<{ sectionId: string | null; todoIds: string[] }>): void {
+  commitTodoLayout(todoIds: string[]): void {
     const byId = new Map(this.data.todos.map((t) => [t.id, t]));
     const next: Todo[] = [];
     const seen = new SvelteSet<string>();
-    for (const g of groups) {
-      for (const id of g.todoIds) {
-        const t = byId.get(id);
-        if (!t || seen.has(id)) continue;
-        seen.add(id);
-        if (g.sectionId === null) {
-          if (t.sectionId !== undefined) delete t.sectionId;
-        } else {
-          t.sectionId = g.sectionId;
-        }
-        next.push(t);
-      }
+    for (const id of todoIds) {
+      const t = byId.get(id);
+      if (!t || seen.has(id)) continue;
+      seen.add(id);
+      next.push(t);
     }
     for (const t of this.data.todos) if (!seen.has(t.id)) next.push(t);
     this.data.todos = next;

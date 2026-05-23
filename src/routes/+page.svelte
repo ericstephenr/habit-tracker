@@ -39,8 +39,6 @@
   const sectionUlMap = new SvelteMap<string, HTMLUListElement>();
 
   let ungroupedTodosUlRef: HTMLUListElement | undefined = $state();
-  let todoSectionsContainerRef: HTMLDivElement | undefined = $state();
-  const todoSectionUlMap = new SvelteMap<string, HTMLUListElement>();
 
   let isDesktop = $state(false);
 
@@ -65,7 +63,6 @@
   };
 
   const TODO_SORTABLE_OPTS: Sortable.Options = {
-    group: 'todos',
     animation: 150,
     handle: '.drag-handle',
     delay: 150,
@@ -117,29 +114,9 @@
     store.commitLayout(groups);
   }
 
-  function readTodoGroupsFromDom(): Array<{ sectionId: string | null; todoIds: string[] }> {
-    const groups: Array<{ sectionId: string | null; todoIds: string[] }> = [];
-    if (ungroupedTodosUlRef) {
-      groups.push({ sectionId: null, todoIds: readIds(ungroupedTodosUlRef) });
-    }
-    for (const section of store.data.sections) {
-      const ul = todoSectionUlMap.get(section.id);
-      if (ul) {
-        groups.push({ sectionId: section.id, todoIds: readIds(ul) });
-      } else {
-        groups.push({
-          sectionId: section.id,
-          todoIds: store.data.todos.filter((t) => t.sectionId === section.id).map((t) => t.id)
-        });
-      }
-    }
-    return groups;
-  }
-
-  function onTodoDragEnd(evt: Sortable.SortableEvent) {
-    const groups = readTodoGroupsFromDom();
-    if (evt.from !== evt.to) evt.item.remove();
-    store.commitTodoLayout(groups);
+  function onTodoDragEnd() {
+    if (!ungroupedTodosUlRef) return;
+    store.commitTodoLayout(readIds(ungroupedTodosUlRef));
   }
 
   function onSectionDragEnd(evt: Sortable.SortableEvent) {
@@ -161,17 +138,6 @@
     };
   }
 
-  function registerTodoSectionUl(node: HTMLUListElement, sectionId: string) {
-    todoSectionUlMap.set(sectionId, node);
-    const inst = Sortable.create(node, TODO_SORTABLE_OPTS);
-    return {
-      destroy() {
-        todoSectionUlMap.delete(sectionId);
-        inst.destroy();
-      }
-    };
-  }
-
   $effect(() => {
     if (!ungroupedUlRef) return;
     const inst = Sortable.create(ungroupedUlRef, HABIT_SORTABLE_OPTS);
@@ -187,12 +153,6 @@
   $effect(() => {
     if (!ungroupedTodosUlRef) return;
     const inst = Sortable.create(ungroupedTodosUlRef, TODO_SORTABLE_OPTS);
-    return () => inst.destroy();
-  });
-
-  $effect(() => {
-    if (!todoSectionsContainerRef) return;
-    const inst = Sortable.create(todoSectionsContainerRef, SECTION_SORTABLE_OPTS);
     return () => inst.destroy();
   });
 
@@ -241,9 +201,6 @@
   let ungroupedGroup = $derived(store.dueGroups[0]);
   let sectionGroups = $derived(store.dueGroups.slice(1));
 
-  let ungroupedTodoGroup = $derived(store.todoGroups[0]);
-  let todoSectionGroups = $derived(store.todoGroups.slice(1));
-
   function habitGroupCounts(habits: Habit[]) {
     let done = 0;
     for (const h of habits) if (store.isDone(h.id, selectedDate.value)) done++;
@@ -254,7 +211,7 @@
   let todosDone = $derived(store.data.todos.filter((t) => t.done).length);
   // Hybrid tasks view: undone tasks live in their (optional) section; done
   // tasks pool into a flat DONE bucket at the bottom regardless of section.
-  let ungroupedUndoneTodos = $derived(ungroupedTodoGroup.todos.filter((t) => !t.done));
+  let undoneTodos = $derived(store.data.todos.filter((t) => !t.done));
   let allDoneTodos = $derived(store.data.todos.filter((t) => t.done));
 
   // ── Confetti on day-complete transition ─────────────────────────
@@ -582,69 +539,18 @@
             />
           </form>
 
-          <!-- Ungrouped undone tasks (no section header) -->
           <ul
             bind:this={ungroupedTodosUlRef}
             style="list-style: none; padding: 0; margin: 18px 0 0;
                    display: flex; flex-direction: column; gap: 8px;
-                   min-height: {ungroupedUndoneTodos.length === 0 ? '8px' : 'auto'};"
+                   min-height: {undoneTodos.length === 0 ? '8px' : 'auto'};"
           >
-            {#each ungroupedUndoneTodos as todo (todo.id)}
+            {#each undoneTodos as todo (todo.id)}
               <li data-id={todo.id}>
                 <TodoItem {todo} onEdit={openEditTodo} />
               </li>
             {/each}
           </ul>
-
-          <!-- Section-grouped undone tasks -->
-          <div bind:this={todoSectionsContainerRef}>
-            {#each todoSectionGroups as group (group.section!.id)}
-              {@const undoneInSection = group.todos.filter((t) => !t.done)}
-              {@const counts = {
-                done: group.todos.length - undoneInSection.length,
-                total: group.todos.length
-              }}
-              <section data-section-id={group.section!.id} style="margin-top: 14px;">
-                <SectionHeader
-                  section={group.section!}
-                  doneCount={counts.done}
-                  totalCount={counts.total}
-                  onRename={openRename}
-                />
-                <div
-                  style="display: grid;
-                         grid-template-rows: {group.section!.collapsed ? '0fr' : '1fr'};
-                         transition: grid-template-rows var(--t-normal) var(--ease-out);"
-                >
-                  <div
-                    style="overflow: hidden; min-height: 0;
-                           padding-top: 10px; margin-top: -10px;"
-                  >
-                    <ul
-                      use:registerTodoSectionUl={group.section!.id}
-                      style="list-style: none; padding: 0; margin: 0;
-                             display: flex; flex-direction: column; gap: 8px;
-                             min-height: {undoneInSection.length === 0 ? '8px' : 'auto'};"
-                    >
-                      {#each undoneInSection as todo (todo.id)}
-                        <li data-id={todo.id}>
-                          <TodoItem {todo} onEdit={openEditTodo} />
-                        </li>
-                      {/each}
-                    </ul>
-                    {#if undoneInSection.length === 0}
-                      <p
-                        style="text-align: center; color: var(--ink-faint);
-                               font-size: 12px; padding: 12px 0;"
-                      >
-                        · no tasks here ·
-                      </p>
-                    {/if}
-                  </div>
-                </div>
-              </section>
-            {/each}
-          </div>
 
           <!-- Empty state when no undone tasks (spec: "All clear." vs "No tasks yet.") -->
           {#if todosOpen === 0}
