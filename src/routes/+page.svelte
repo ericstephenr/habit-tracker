@@ -59,6 +59,8 @@
     handle: '.drag-handle',
     delay: 150,
     delayOnTouchOnly: true,
+    forceFallback: true,
+    ghostClass: 'drop-indicator',
     onEnd: onHabitDragEnd
   };
 
@@ -68,6 +70,8 @@
     handle: '.drag-handle',
     delay: 150,
     delayOnTouchOnly: true,
+    forceFallback: true,
+    ghostClass: 'drop-indicator',
     onEnd: onTodoDragEnd
   };
 
@@ -76,6 +80,7 @@
     handle: '.section-drag-handle',
     delay: 150,
     delayOnTouchOnly: true,
+    forceFallback: true,
     draggable: '[data-section-id]',
     onEnd: onSectionDragEnd
   };
@@ -775,6 +780,15 @@
   }
   .fab:active {
     transform: scale(0.92) rotate(-8deg);
+  }
+
+  :global(.drop-indicator) {
+    background: var(--surface);
+    border-radius: 18px;
+    border: 1px dashed var(--line-strong);
+  }
+  :global(.drop-indicator > *) {
+    visibility: hidden;
   }
 
   @media (min-width: 1024px) {
