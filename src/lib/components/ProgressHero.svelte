@@ -119,7 +119,7 @@
         ></div>
       </div>
     </div>
-  {:else if !isFuture}
+  {:else if !isFuture && store.hasAnyHabit}
     <div
       style="padding: 20px; background: var(--surface);
              border-radius: 18px; border: 1px dashed var(--line-strong);

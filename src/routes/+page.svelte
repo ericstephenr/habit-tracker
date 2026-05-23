@@ -321,19 +321,21 @@
         Habits<span style="color: var(--accent);">.</span>
       </h1>
       <div style="flex: 1;"></div>
-      <button
-        type="button"
-        onclick={openAdd}
-        aria-label="Add habit"
-        style="display: inline-flex; align-items: center; gap: 6px;
-               padding: 8px 14px 8px 12px; border: 0; border-radius: 99px;
-               background: var(--accent); color: var(--accent-on);
-               font-family: var(--font-display); font-size: 12px; font-weight: 600;
-               cursor: pointer; box-shadow: 0 4px 14px var(--accent-glow);"
-      >
-        <IconPlus class="h-3.5 w-3.5" />
-        New habit
-      </button>
+      {#if hasStructure}
+        <button
+          type="button"
+          onclick={openAdd}
+          aria-label="Add habit"
+          style="display: inline-flex; align-items: center; gap: 6px;
+                 padding: 8px 14px 8px 12px; border: 0; border-radius: 99px;
+                 background: var(--accent); color: var(--accent-on);
+                 font-family: var(--font-display); font-size: 12px; font-weight: 600;
+                 cursor: pointer; box-shadow: 0 4px 14px var(--accent-glow);"
+        >
+          <IconPlus class="h-3.5 w-3.5" />
+          New habit
+        </button>
+      {/if}
       <button
         type="button"
         onclick={() => (dataModalOpen = true)}
