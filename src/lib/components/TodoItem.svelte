@@ -1,102 +1,88 @@
 <script lang="ts">
   import type { Todo } from '$lib/types';
   import { store } from '$lib/store.svelte';
-  import { menuState } from '$lib/menuState.svelte';
   import IconCheck from './icons/IconCheck.svelte';
   import IconGrip from './icons/IconGrip.svelte';
 
   let { todo, onEdit }: { todo: Todo; onEdit: (t: Todo) => void } = $props();
 
-  let menuOpen = $derived(menuState.isOpen(todo.id));
-  let menuRef: HTMLDivElement | null = $state(null);
-  let kebabRef: HTMLButtonElement | null = $state(null);
+  let pressed = $state(false);
 
   function toggle() {
     store.toggleTodo(todo.id);
   }
-
-  function toggleMenu() {
-    if (menuOpen) menuState.close();
-    else menuState.open(todo.id);
-  }
-
-  function handleEdit() {
-    kebabRef?.focus();
-    menuState.close();
-    onEdit(todo);
-  }
-
-  function handleDelete() {
-    menuState.close();
-    store.deleteTodo(todo.id);
-  }
-
-  $effect(() => {
-    if (!menuOpen) return;
-    function onDocMouseDown(e: MouseEvent) {
-      if (menuRef && !menuRef.contains(e.target as Node)) menuState.close();
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') menuState.close();
-    }
-    document.addEventListener('mousedown', onDocMouseDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocMouseDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  });
 </script>
 
-<div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+<div
+  class="ht-card"
+  style="background: var(--surface); border-radius: var(--r-lg);
+         border: 1px solid {todo.done ? 'transparent' : 'var(--line)'};
+         box-shadow: var(--shadow-1);
+         display: flex; align-items: center; gap: 12px; padding: 14px;
+         transition: border-color var(--t-normal) var(--ease-out), box-shadow var(--t-normal) var(--ease-out);"
+>
   <button
     type="button"
     onclick={toggle}
+    onpointerdown={() => (pressed = true)}
+    onpointerup={() => (pressed = false)}
+    onpointerleave={() => (pressed = false)}
     aria-pressed={todo.done}
     aria-label={todo.done ? `Mark ${todo.name} not done` : `Mark ${todo.name} done`}
-    class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition {todo.done
-      ? 'border-teal-500 bg-teal-500 text-white'
-      : 'border-slate-300 bg-white text-transparent hover:border-slate-400'}"
+    style="width: 28px; height: 28px; border-radius: var(--r-sm);
+           flex-shrink: 0; border: 0; padding: 0;
+           background: {todo.done ? 'var(--accent)' : 'var(--surface-2)'};
+           color: {todo.done ? 'var(--accent-on)' : 'transparent'};
+           display: flex; align-items: center; justify-content: center;
+           cursor: pointer; position: relative; overflow: hidden;
+           transition: background var(--t-normal) var(--ease-out),
+                       transform var(--t-quick) var(--ease-spring),
+                       box-shadow var(--t-normal) var(--ease-spring);
+           transform: scale({pressed ? 0.86 : 1});
+           box-shadow: {todo.done
+      ? '0 4px 12px var(--accent-glow)'
+      : 'inset 0 0 0 1.5px var(--line-strong)'};"
   >
-    <IconCheck class="h-4 w-4" />
+    <span
+      style="transform: scale({todo.done ? 1 : 0});
+             transition: transform 280ms cubic-bezier(.2,1.6,.4,1) 60ms;
+             display: flex; align-items: center; justify-content: center;"
+    >
+      <IconCheck class="h-4 w-4" />
+    </span>
   </button>
 
   <span
-    class="min-w-0 flex-1 truncate {todo.done ? 'text-slate-400 line-through' : 'text-slate-900'}"
-    >{todo.name}</span
+    title={todo.name}
+    style="flex: 1; min-width: 0;
+           font-family: var(--font-body); font-size: var(--fs-input); font-weight: 500;
+           color: var(--ink); opacity: {todo.done ? 0.5 : 1};
+           overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+           {todo.done ? 'text-decoration: line-through;' : ''}
+           transition: all 200ms;"
   >
+    {todo.name}
+  </span>
 
-  <div class="relative" bind:this={menuRef}>
-    <button
-      bind:this={kebabRef}
-      type="button"
-      onclick={toggleMenu}
-      aria-label="To-do options, drag to reorder"
-      aria-haspopup="menu"
-      aria-expanded={menuOpen}
-      class="drag-handle flex h-8 w-8 cursor-grab touch-none items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-    >
-      <IconGrip class="h-5 w-5" />
-    </button>
-    {#if menuOpen}
-      <div
-        role="menu"
-        class="absolute top-9 right-0 z-20 w-32 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
-      >
-        <button
-          type="button"
-          role="menuitem"
-          onclick={handleEdit}
-          class="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50">Edit</button
-        >
-        <button
-          type="button"
-          role="menuitem"
-          onclick={handleDelete}
-          class="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-          >Delete</button
-        >
-      </div>
-    {/if}
-  </div>
+  <button
+    type="button"
+    class="drag-handle"
+    onclick={() => onEdit(todo)}
+    aria-label={`Edit ${todo.name}`}
+    style="width: 28px; height: 28px; border: 0; background: transparent; padding: 0;
+           color: var(--ink-faint); cursor: pointer; flex-shrink: 0;
+           display: flex; align-items: center; justify-content: center;
+           border-radius: var(--r-pill); touch-action: none;
+           transition: background var(--t-quick) var(--ease-out), color var(--t-quick) var(--ease-out);"
+    onmouseenter={(e) => {
+      (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-2)';
+      (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-muted)';
+    }}
+    onmouseleave={(e) => {
+      (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+      (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
+    }}
+  >
+    <IconGrip class="h-4 w-4" />
+  </button>
 </div>

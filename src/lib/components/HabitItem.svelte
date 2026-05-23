@@ -5,18 +5,18 @@
   import { calcStreak } from '$lib/streaks';
   import { effectiveTarget } from '$lib/schedule';
   import { currentDate } from '$lib/currentDate.svelte';
-  import { menuState } from '$lib/menuState.svelte';
-  import StreakBadge from './StreakBadge.svelte';
-  import ConfirmDialog from './ConfirmDialog.svelte';
+  import StreakCorner from './StreakCorner.svelte';
   import IconCheck from './icons/IconCheck.svelte';
   import IconGrip from './icons/IconGrip.svelte';
   import IconMinus from './icons/IconMinus.svelte';
   import IconPlus from './icons/IconPlus.svelte';
+  import IconChevron from './icons/IconChevron.svelte';
 
   let { habit, onEdit, date }: { habit: Habit; onEdit: (h: Habit) => void; date: string } =
     $props();
 
   let expanded = $state(false);
+  let pressed = $state(false);
 
   let isFuture = $derived(date > currentDate.value);
   let done = $derived(store.isDone(habit.id, date));
@@ -29,14 +29,18 @@
   let streak = $derived(
     calcStreak(habit, store.donesByHabit.get(habit.id), streakRef, currentDate.value)
   );
-  let menuOpen = $derived(menuState.isOpen(habit.id));
-  let menuRef: HTMLDivElement | null = $state(null);
-  let kebabRef: HTMLButtonElement | null = $state(null);
-  let confirmOpen = $state(false);
+  let fillPct = $derived(
+    habit.type === 'counter' && target > 0 ? Math.min(1, count / target) * 100 : 0
+  );
 
-  function toggle() {
+  function handleCheck() {
     if (isFuture) return;
-    store.toggleCompletion(habit.id, date);
+    if (habit.type === 'binary') {
+      store.toggleCompletion(habit.id, date);
+    } else {
+      // Counter quick-fill: tap circle to set count = target; tap again clears to 0.
+      store.setCount(habit.id, date, count >= target ? 0 : target);
+    }
   }
 
   function inc() {
@@ -49,52 +53,30 @@
     store.setCount(habit.id, date, Math.max(0, count - habit.counter.step));
   }
 
-  function toggleMenu() {
-    if (menuOpen) menuState.close();
-    else menuState.open(habit.id);
-  }
-
-  function handleEdit() {
-    // Restore focus to the kebab before unmounting the menu, so the modal's
-    // <dialog>.showModal() captures kebab as the trigger and returns focus there on close.
-    kebabRef?.focus();
-    menuState.close();
-    onEdit(habit);
-  }
-
-  function handleDelete() {
-    kebabRef?.focus();
-    menuState.close();
-    confirmOpen = true;
-  }
-
   $effect(() => {
     if (!habit.notes) expanded = false;
   });
-
-  $effect(() => {
-    if (!menuOpen) return;
-    function onDocMouseDown(e: MouseEvent) {
-      if (menuRef && !menuRef.contains(e.target as Node)) menuState.close();
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') menuState.close();
-    }
-    document.addEventListener('mousedown', onDocMouseDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocMouseDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  });
 </script>
 
-<div class="rounded-xl border border-slate-200 bg-white shadow-sm">
-  <div class="flex items-center gap-3 p-3">
-    {#if habit.type === 'binary'}
+<div style="position: relative;">
+  <StreakCorner {streak} />
+
+  <div
+    class="ht-card"
+    style="background: var(--surface); border-radius: var(--r-lg);
+           border: 1px solid {done ? 'transparent' : 'var(--line)'};
+           box-shadow: var(--shadow-1);
+           overflow: hidden; position: relative;
+           transition: border-color var(--t-normal) var(--ease-out), box-shadow var(--t-normal) var(--ease-out);"
+  >
+    <div style="display: flex; align-items: center; gap: 12px; padding: 14px;">
+      <!-- Checkbox: binary = rounded square; counter = circle with water-fill -->
       <button
         type="button"
-        onclick={toggle}
+        onclick={handleCheck}
+        onpointerdown={() => !isFuture && (pressed = true)}
+        onpointerup={() => (pressed = false)}
+        onpointerleave={() => (pressed = false)}
         disabled={isFuture}
         aria-pressed={done}
         aria-label={isFuture
@@ -102,130 +84,182 @@
           : done
             ? `Mark ${habit.name} not done`
             : `Mark ${habit.name} done`}
-        class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition {done
-          ? 'border-teal-500 bg-teal-500 text-white'
-          : 'border-slate-300 bg-white text-transparent'} {isFuture
-          ? 'cursor-not-allowed opacity-40'
-          : done
-            ? ''
-            : 'hover:border-slate-400'}"
+        style="width: 28px; height: 28px;
+               border-radius: {habit.type === 'counter' ? '9999px' : 'var(--r-sm)'};
+               flex-shrink: 0; border: 0; padding: 0;
+               background: {done ? 'var(--accent)' : 'var(--surface-2)'};
+               color: {done ? 'var(--accent-on)' : 'transparent'};
+               display: flex; align-items: center; justify-content: center;
+               cursor: {isFuture ? 'not-allowed' : 'pointer'};
+               opacity: {isFuture ? 0.35 : 1};
+               position: relative; overflow: hidden;
+               transition: background var(--t-normal) var(--ease-out),
+                           transform var(--t-quick) var(--ease-spring),
+                           box-shadow var(--t-normal) var(--ease-spring);
+               transform: scale({pressed ? 0.86 : 1});
+               box-shadow: {done
+          ? '0 4px 12px var(--accent-glow)'
+          : 'inset 0 0 0 1.5px var(--line-strong)'};"
       >
-        <IconCheck class="h-4 w-4" />
-      </button>
-    {:else}
-      <div
-        aria-hidden="true"
-        class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition {done
-          ? 'border-teal-500 bg-teal-500 text-white'
-          : 'border-slate-300 bg-white text-transparent'} {isFuture ? 'opacity-40' : ''}"
-      >
-        <IconCheck class="h-4 w-4" />
-      </div>
-    {/if}
-
-    {#if habit.notes}
-      <button
-        type="button"
-        onclick={() => (expanded = !expanded)}
-        aria-expanded={expanded}
-        aria-controls="habit-notes-{habit.id}"
-        class="group flex min-w-0 flex-1 items-center gap-1.5 rounded text-left focus-visible:ring-2 focus-visible:ring-teal-200 focus-visible:outline-none"
-      >
+        {#if habit.type === 'counter' && !done && count > 0}
+          <span
+            aria-hidden="true"
+            style="position: absolute; left: 0; right: 0; bottom: 0;
+                   height: max(6px, {fillPct}%);
+                   background: var(--accent);
+                   transition: height var(--t-emphasized) var(--ease-out);
+                   pointer-events: none;"
+          ></span>
+        {/if}
         <span
-          class="min-w-0 truncate group-hover:underline {done
-            ? 'text-slate-400 line-through'
-            : 'text-slate-900'}">{habit.name}</span
+          style="position: relative; display: flex; align-items: center; justify-content: center;
+                 transform: scale({done ? 1 : 0});
+                 transition: transform 280ms cubic-bezier(.2,1.6,.4,1) 60ms;"
         >
-        <span aria-hidden="true" class="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400"></span>
+          <IconCheck class="h-4 w-4" />
+        </span>
       </button>
-    {:else}
-      <span
-        class="min-w-0 flex-1 truncate {done ? 'text-slate-400 line-through' : 'text-slate-900'}"
-        >{habit.name}</span
-      >
-    {/if}
 
-    {#if habit.type === 'counter'}
-      <div class="flex shrink-0 items-center gap-1">
+      <!-- Name (clickable when notes exist) -->
+      {#if habit.notes}
         <button
           type="button"
-          onclick={dec}
-          disabled={isFuture || count === 0}
-          aria-label={`Decrease ${habit.name} by ${habit.counter.step}${unitSuffix}`}
-          class="flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          onclick={() => (expanded = !expanded)}
+          aria-expanded={expanded}
+          aria-controls="habit-notes-{habit.id}"
+          style="flex: 1; min-width: 0; text-align: left;
+                 background: transparent; border: 0; padding: 0;
+                 cursor: pointer;
+                 display: flex; align-items: center; gap: 6px;"
         >
-          <IconMinus class="h-3 w-3" />
+          <span
+            title={habit.name}
+            style="font-family: var(--font-body); font-size: var(--fs-input); font-weight: 500;
+                   color: var(--ink); opacity: {done ? 0.55 : 1};
+                   transition: all 200ms;
+                   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+          >
+            {habit.name}
+          </span>
+          <span
+            aria-hidden="true"
+            style="display: inline-flex; align-items: center; color: var(--ink-faint);
+                   flex-shrink: 0; opacity: 0.75;"
+          >
+            <IconChevron dir={expanded ? 'up' : 'down'} class="h-3 w-3" />
+          </span>
         </button>
+      {:else}
         <span
-          aria-live="polite"
-          class="min-w-[3.5rem] px-1 text-center text-xs tabular-nums {done
-            ? 'font-semibold text-teal-700'
-            : 'text-slate-600'}">{count}/{target}{unitSuffix}</span
+          title={habit.name}
+          style="flex: 1; min-width: 0;
+                 font-family: var(--font-body); font-size: var(--fs-input); font-weight: 500;
+                 color: var(--ink); opacity: {done ? 0.55 : 1};
+                 transition: all 200ms;
+                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
         >
-        <button
-          type="button"
-          onclick={inc}
-          disabled={isFuture}
-          aria-label={`Increase ${habit.name} by ${habit.counter.step}${unitSuffix}`}
-          class="flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <IconPlus class="h-3 w-3" />
-        </button>
-      </div>
-    {/if}
+          {habit.name}
+        </span>
+      {/if}
 
-    <StreakBadge {streak} />
-
-    <div class="relative" bind:this={menuRef}>
-      <button
-        bind:this={kebabRef}
-        type="button"
-        onclick={toggleMenu}
-        aria-label="Habit options, drag to reorder"
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        class="drag-handle flex h-8 w-8 cursor-grab touch-none items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-      >
-        <IconGrip class="h-5 w-5" />
-      </button>
-      {#if menuOpen}
-        <div
-          role="menu"
-          class="absolute top-9 right-0 z-20 w-32 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
-        >
+      <!-- Counter ± controls -->
+      {#if habit.type === 'counter'}
+        <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
           <button
             type="button"
-            role="menuitem"
-            onclick={handleEdit}
-            class="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50">Edit</button
+            onclick={dec}
+            disabled={isFuture || count === 0}
+            aria-label={`Decrease ${habit.name} by ${habit.counter.step}${unitSuffix}`}
+            style="width: 38px; height: 28px; border: 0; background: transparent; padding: 0 5px;
+                   color: var(--ink-muted); cursor: pointer;
+                   display: flex; align-items: center; justify-content: center;
+                   opacity: {isFuture || count === 0 ? 0.3 : 1};"
           >
+            <span
+              style="width: 28px; height: 28px; border-radius: var(--r-sm);
+                     background: var(--surface-2);
+                     display: flex; align-items: center; justify-content: center;"
+            >
+              <IconMinus class="h-3.5 w-3.5" />
+            </span>
+          </button>
+          <span
+            aria-live="polite"
+            style="display: inline-flex; flex-direction: column; align-items: center;
+                   padding: 0 6px; text-align: center; min-width: 60px; line-height: 1;"
+          >
+            <span
+              style="font-family: var(--font-display); font-size: 12px; font-weight: 600;
+                     color: var(--ink); font-variant-numeric: tabular-nums;"
+            >
+              {count}<span style="color: var(--ink-faint); font-weight: 500;">/{target}</span>
+            </span>
+            {#if habit.counter.unit}
+              <span
+                style="margin-top: 2px; font-size: 10px; font-weight: 500; color: var(--ink-faint);
+                       text-transform: lowercase; letter-spacing: 0.3px;"
+              >
+                {habit.counter.unit}
+              </span>
+            {/if}
+          </span>
           <button
             type="button"
-            role="menuitem"
-            onclick={handleDelete}
-            class="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-            >Delete</button
+            onclick={inc}
+            disabled={isFuture}
+            aria-label={`Increase ${habit.name} by ${habit.counter.step}${unitSuffix}`}
+            style="width: 38px; height: 28px; border: 0; background: transparent; padding: 0 5px;
+                   color: var(--ink-muted); cursor: pointer;
+                   display: flex; align-items: center; justify-content: center;
+                   opacity: {isFuture ? 0.3 : 1};"
           >
+            <span
+              style="width: 28px; height: 28px; border-radius: var(--r-sm);
+                     background: var(--surface-2);
+                     display: flex; align-items: center; justify-content: center;"
+            >
+              <IconPlus class="h-3.5 w-3.5" />
+            </span>
+          </button>
         </div>
       {/if}
-    </div>
-  </div>
-  {#if expanded && habit.notes}
-    <div
-      id="habit-notes-{habit.id}"
-      transition:slide={{ duration: 150 }}
-      class="px-3 pb-3 pl-12 text-sm whitespace-pre-wrap text-slate-600"
-    >
-      {habit.notes}
-    </div>
-  {/if}
-</div>
 
-<ConfirmDialog
-  bind:open={confirmOpen}
-  title="Delete habit?"
-  body={`This permanently removes "${habit.name}" and all of its completion history.`}
-  confirmLabel="Delete"
-  danger
-  onConfirm={() => store.deleteHabit(habit.id)}
-/>
+      <!-- Edit grip (also drag handle via SortableJS delay-on-touch) -->
+      <button
+        type="button"
+        class="drag-handle"
+        onclick={() => onEdit(habit)}
+        aria-label={`Edit ${habit.name}`}
+        style="width: 28px; height: 28px; border: 0; background: transparent; padding: 0;
+               color: var(--ink-faint); cursor: pointer; flex-shrink: 0;
+               display: flex; align-items: center; justify-content: center;
+               border-radius: var(--r-pill);
+               touch-action: none;
+               transition: background var(--t-quick) var(--ease-out),
+                           color var(--t-quick) var(--ease-out);"
+        onmouseenter={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-2)';
+          (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-muted)';
+        }}
+        onmouseleave={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+          (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
+        }}
+      >
+        <IconGrip class="h-4 w-4" />
+      </button>
+    </div>
+
+    {#if expanded && habit.notes}
+      <div
+        id="habit-notes-{habit.id}"
+        transition:slide={{ duration: 200 }}
+        style="padding: 0 14px 14px 52px;
+               font-size: var(--fs-body); color: var(--ink-muted);
+               white-space: pre-wrap; line-height: 1.5;"
+      >
+        {habit.notes}
+      </div>
+    {/if}
+  </div>
+</div>

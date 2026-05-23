@@ -1,5 +1,7 @@
 <script lang="ts">
   import { store } from '$lib/store.svelte';
+  import { appearance, type Accent } from '$lib/appearance.svelte';
+  import { emptyAppData } from '$lib/types';
   import {
     buildExportPayload,
     downloadJson,
@@ -8,14 +10,16 @@
     readFile
   } from '$lib/importExport';
   import type { AppData } from '$lib/types';
-  import Modal from './Modal.svelte';
+  import Sheet from './Sheet.svelte';
+  import SegmentToggle from './SegmentToggle.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
 
   let { open = $bindable(false) }: { open?: boolean } = $props();
 
   let errorMessage = $state('');
   let pendingImport = $state<AppData | null>(null);
-  let confirmOpen = $state(false);
+  let confirmImportOpen = $state(false);
+  let confirmResetOpen = $state(false);
   let confirmBody = $state('');
   let fileInputEl: HTMLInputElement | null = $state(null);
 
@@ -23,7 +27,8 @@
     if (!open) {
       errorMessage = '';
       pendingImport = null;
-      confirmOpen = false;
+      confirmImportOpen = false;
+      confirmResetOpen = false;
       if (fileInputEl) fileInputEl.value = '';
     }
   });
@@ -45,7 +50,6 @@
     errorMessage = '';
     const input = e.currentTarget as HTMLInputElement;
     const file = input.files?.[0];
-    // Reset immediately so re-picking the same file fires `change` again.
     input.value = '';
     if (!file) return;
 
@@ -63,19 +67,20 @@
       return;
     }
 
-    const s = (n: number) => (n === 1 ? '' : 's');
+    const pluralize = (n: number, w: string) => (n === 1 ? `${n} ${w}` : `${n} ${w}s`);
     const cur = store.data;
     const nxt = result.data;
     pendingImport = nxt;
     confirmBody =
-      `Replace your ${cur.habits.length} habit${s(cur.habits.length)}, ` +
-      `${cur.completions.length} completion${s(cur.completions.length)}, and ` +
-      `${cur.sections.length} section${s(cur.sections.length)} ` +
-      `with ${nxt.habits.length} habit${s(nxt.habits.length)}, ` +
-      `${nxt.completions.length} completion${s(nxt.completions.length)}, and ` +
-      `${nxt.sections.length} section${s(nxt.sections.length)} from the file? ` +
-      `This cannot be undone.`;
-    confirmOpen = true;
+      `Replace your ${pluralize(cur.habits.length, 'habit')}, ` +
+      `${pluralize(cur.completions.length, 'completion')}, ` +
+      `${pluralize(cur.sections.length, 'section')} and ` +
+      `${pluralize(cur.todos.length, 'task')} with ` +
+      `${pluralize(nxt.habits.length, 'habit')}, ` +
+      `${pluralize(nxt.completions.length, 'completion')}, ` +
+      `${pluralize(nxt.sections.length, 'section')} and ` +
+      `${pluralize(nxt.todos.length, 'task')} from the file? This cannot be undone.`;
+    confirmImportOpen = true;
   }
 
   function doReplace() {
@@ -84,63 +89,135 @@
     pendingImport = null;
     close();
   }
+
+  function doReset() {
+    store.replaceAll(emptyAppData());
+    close();
+  }
+
+  const ACCENTS: Array<{ value: Accent; color: string }> = [
+    { value: 'violet', color: 'oklch(0.62 0.22 300)' },
+    { value: 'tangerine', color: 'oklch(0.72 0.18 50)' },
+    { value: 'lime', color: 'oklch(0.72 0.2 135)' },
+    { value: 'cobalt', color: 'oklch(0.55 0.22 260)' }
+  ];
+
+  function rowStyle(danger = false) {
+    return (
+      'display: flex; align-items: center; gap: 14px;' +
+      ' padding: 14px 8px; background: transparent; border: 0;' +
+      ' border-radius: 12px; cursor: pointer; text-align: left; width: 100%;' +
+      ' font-family: var(--font-body); font-size: 16px;' +
+      ` color: ${danger ? 'var(--danger)' : 'var(--ink)'};`
+    );
+  }
+  function iconStyle(danger = false) {
+    return (
+      'width: 32px; height: 32px; border-radius: 10px;' +
+      ` background: ${danger ? 'var(--danger-soft)' : 'var(--surface-2)'};` +
+      ' display: flex; align-items: center; justify-content: center;' +
+      ' font-family: var(--font-display); font-weight: 600; flex-shrink: 0;' +
+      ` color: ${danger ? 'var(--danger)' : 'var(--ink)'};`
+    );
+  }
 </script>
 
-<Modal bind:open labelledby="data-modal-title">
-  <h2 id="data-modal-title" class="mb-4 text-lg font-semibold text-slate-900">Data</h2>
+<Sheet bind:open labelledby="data-modal-title" title="Settings">
+  <div style="padding: 8px 24px 4px; display: flex; flex-direction: column; gap: 8px;">
+    <button onclick={handleExport} style={rowStyle()}>
+      <span aria-hidden="true" style={iconStyle()}>↓</span>
+      Export data
+    </button>
+    <button onclick={chooseFile} style={rowStyle()}>
+      <span aria-hidden="true" style={iconStyle()}>↑</span>
+      Import from backup
+    </button>
+    <button onclick={() => (confirmResetOpen = true)} style={rowStyle(true)}>
+      <span aria-hidden="true" style={iconStyle(true)}>⟲</span>
+      Reset all data
+    </button>
 
-  <section class="mb-5">
-    <h3 class="text-sm font-medium text-slate-700">Export</h3>
-    <p class="mt-1 mb-2 text-xs text-slate-500">
-      Download all habits and completions as a JSON file.
-    </p>
-    <button
-      type="button"
-      onclick={handleExport}
-      class="rounded-lg bg-teal-600 px-3 py-2 text-sm font-medium text-white hover:bg-teal-700"
-      >Export to JSON</button
-    >
-  </section>
+    {#if errorMessage}
+      <div
+        role="alert"
+        style="margin: 4px 8px; padding: 8px 12px; border-radius: 10px;
+               background: var(--danger-soft); color: var(--danger);
+               font-family: var(--font-body); font-size: 12px;"
+      >
+        {errorMessage}
+      </div>
+    {/if}
 
-  <section>
-    <h3 class="text-sm font-medium text-slate-700">Import</h3>
-    <p class="mt-1 mb-2 text-xs text-slate-500">
-      Replace current habits and completions with the contents of a previously exported JSON file.
-    </p>
-    <button
-      type="button"
-      onclick={chooseFile}
-      class="rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
-      >Choose file…</button
-    >
     <input
       bind:this={fileInputEl}
       type="file"
       accept="application/json,.json"
-      hidden
       onchange={onPick}
+      style="display: none;"
     />
-  </section>
 
-  <p id="data-modal-error" class="mt-3 min-h-[1.25rem] text-xs text-rose-600" aria-live="polite">
-    {errorMessage}
-  </p>
+    <div style="height: 1px; background: var(--line); margin: 8px 0;"></div>
 
-  <div class="mt-3 flex justify-end">
-    <button
-      type="button"
-      onclick={close}
-      class="rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-      >Close</button
-    >
+    <div style="padding: 4px 0 8px;">
+      <div
+        style="font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
+               text-transform: uppercase; color: var(--ink-muted);
+               margin-bottom: 12px;"
+      >
+        Appearance
+      </div>
+      <SegmentToggle
+        value={appearance.theme}
+        options={[
+          { value: 'light', label: 'Light' },
+          { value: 'dark', label: 'Dark' }
+        ]}
+        onChange={(v) => appearance.setTheme(v)}
+      />
+    </div>
+
+    <div style="padding: 4px 0 4px;">
+      <div
+        style="font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
+               text-transform: uppercase; color: var(--ink-muted);
+               margin-bottom: 12px;"
+      >
+        Accent color
+      </div>
+      <div style="display: flex; gap: 12px;">
+        {#each ACCENTS as a (a.value)}
+          {@const selected = appearance.accent === a.value}
+          <button
+            type="button"
+            onclick={() => appearance.setAccent(a.value)}
+            aria-label={a.value}
+            aria-pressed={selected}
+            style="width: 48px; height: 48px; border-radius: 14px;
+                   background: {a.color}; cursor: pointer; padding: 0;
+                   border: 3px solid {selected ? 'var(--ink)' : 'transparent'};
+                   box-shadow: 0 4px 12px {a.color}40;
+                   transition: transform 140ms;"
+          ></button>
+        {/each}
+      </div>
+    </div>
   </div>
-</Modal>
+</Sheet>
 
 <ConfirmDialog
-  bind:open={confirmOpen}
+  bind:open={confirmImportOpen}
   title="Replace all data?"
   body={confirmBody}
   confirmLabel="Replace"
   danger
   onConfirm={doReplace}
+/>
+
+<ConfirmDialog
+  bind:open={confirmResetOpen}
+  title="Reset all data?"
+  body="This permanently deletes all habits, sections, tasks and completion history. Export a backup first if you want to keep anything."
+  confirmLabel="Reset everything"
+  danger
+  onConfirm={doReset}
 />

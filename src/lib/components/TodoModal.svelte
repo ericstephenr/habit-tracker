@@ -1,78 +1,144 @@
 <script lang="ts">
-  import { tick } from 'svelte';
   import type { Todo } from '$lib/types';
   import { store } from '$lib/store.svelte';
-  import Modal from './Modal.svelte';
+  import Sheet from './Sheet.svelte';
+  import Button from './Button.svelte';
+  import Field from './Field.svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
 
   let { open = $bindable(false), todo }: { open?: boolean; todo?: Todo } = $props();
 
   let name = $state('');
-  let inputEl: HTMLInputElement | null = $state(null);
+  let sectionId = $state<string | ''>('');
   let interacted = $state(false);
+  let confirmDeleteOpen = $state(false);
 
   $effect(() => {
     if (!open) return;
     name = todo?.name ?? '';
+    sectionId = todo?.sectionId ?? '';
     interacted = false;
-    tick().then(() => inputEl?.focus());
+    confirmDeleteOpen = false;
   });
 
   let canSave = $derived(name.trim().length > 0);
-  let title = $derived(todo ? 'Rename to-do' : 'New to-do');
-  let confirmLabel = $derived(todo ? 'Save' : 'Add');
+  let errorMessage = $derived(!name.trim() ? 'Add a task name.' : '');
 
   function close() {
     open = false;
   }
 
+  function applySection(t: Todo) {
+    if (sectionId) t.sectionId = sectionId;
+    else delete t.sectionId;
+  }
+
   function save() {
     interacted = true;
     if (!canSave) return;
-    if (todo) store.renameTodo(todo.id, name);
-    else store.addTodo(name);
+    if (todo) {
+      store.renameTodo(todo.id, name);
+      const live = store.data.todos.find((x) => x.id === todo.id);
+      if (live) {
+        applySection(live);
+        store.replaceAll(store.data);
+      }
+    } else {
+      const newT = store.addTodo(name);
+      applySection(newT);
+      store.replaceAll(store.data);
+    }
     close();
   }
 
   function onInputKey(e: KeyboardEvent) {
     if (e.key === 'Enter') save();
   }
+
+  function deleteTodo() {
+    if (!todo) return;
+    store.deleteTodo(todo.id);
+    close();
+  }
+
+  const inputStyle =
+    'width: 100%; box-sizing: border-box; padding: 14px 16px; border-radius: 14px; ' +
+    'border: 1.5px solid var(--line); background: var(--surface-2); ' +
+    'font-family: var(--font-body); font-size: 16px; color: var(--ink); ' +
+    'outline: none; transition: border-color 140ms, background 140ms;';
+
+  function onFieldFocus(e: FocusEvent) {
+    const el = e.currentTarget as HTMLElement;
+    el.style.borderColor = 'var(--accent)';
+    el.style.background = 'var(--surface)';
+  }
+  function onFieldBlur(e: FocusEvent) {
+    const el = e.currentTarget as HTMLElement;
+    el.style.borderColor = 'var(--line)';
+    el.style.background = 'var(--surface-2)';
+  }
 </script>
 
-<Modal bind:open labelledby="todo-modal-title">
-  <h2 id="todo-modal-title" class="mb-4 text-lg font-semibold text-slate-900">{title}</h2>
+<Sheet bind:open labelledby="todo-modal-title" title={todo ? 'Rename task' : 'New task'}>
+  <div style="padding: 8px 24px 4px; display: flex; flex-direction: column; gap: 14px;">
+    <Field label="Task">
+      <input
+        data-autofocus
+        type="text"
+        bind:value={name}
+        oninput={() => (interacted = true)}
+        onkeydown={onInputKey}
+        placeholder="e.g. Buy groceries"
+        style={inputStyle}
+        onfocus={onFieldFocus}
+        onblur={onFieldBlur}
+      />
+    </Field>
 
-  <label class="block">
-    <span class="text-sm font-medium text-slate-700">Name</span>
-    <input
-      bind:this={inputEl}
-      type="text"
-      bind:value={name}
-      oninput={() => (interacted = true)}
-      onkeydown={onInputKey}
-      placeholder="e.g. Buy groceries"
-      aria-invalid={interacted && !canSave}
-      aria-describedby="todo-modal-error"
-      class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-200 focus:outline-none aria-[invalid=true]:border-rose-400 aria-[invalid=true]:focus:ring-rose-200"
-    />
-  </label>
+    {#if store.data.sections.length > 0}
+      <Field label="Section">
+        <select
+          bind:value={sectionId}
+          onfocus={onFieldFocus}
+          onblur={onFieldBlur}
+          style="{inputStyle} cursor: pointer; appearance: none;"
+        >
+          <option value="">— No section —</option>
+          {#each store.data.sections as s (s.id)}
+            <option value={s.id}>{s.name}</option>
+          {/each}
+        </select>
+      </Field>
+    {/if}
 
-  <p id="todo-modal-error" class="mt-3 min-h-[1.25rem] text-xs text-rose-600" aria-live="polite">
-    {interacted && !canSave ? 'Add a to-do name.' : ''}
-  </p>
-
-  <div class="mt-3 flex justify-end gap-2">
-    <button
-      type="button"
-      onclick={close}
-      class="rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-      >Cancel</button
+    <div
+      role="alert"
+      aria-live="polite"
+      style="min-height: 20px; padding: 0 4px;
+             font-size: 12px; color: var(--danger); font-family: var(--font-body);
+             opacity: {interacted && errorMessage ? 1 : 0};
+             transition: opacity 160ms;"
     >
-    <button
-      type="button"
-      onclick={save}
-      disabled={!canSave}
-      class="rounded-lg bg-teal-600 px-3 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-      >{confirmLabel}</button
-    >
+      {errorMessage || ' '}
+    </div>
+
+    <Button variant="primary" onclick={save}>{todo ? 'Save' : 'Create task'}</Button>
+
+    {#if todo}
+      <Button
+        variant="ghost"
+        onclick={() => (confirmDeleteOpen = true)}
+        style=" color: var(--danger);">Delete task</Button
+      >
+    {/if}
   </div>
-</Modal>
+</Sheet>
+
+<ConfirmDialog
+  bind:open={confirmDeleteOpen}
+  title="Delete task?"
+  body={todo ? `This permanently removes "${todo.name}".` : ''}
+  confirmLabel="Delete"
+  danger
+  onConfirm={deleteTodo}
+/>

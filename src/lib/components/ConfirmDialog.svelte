@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { tick } from 'svelte';
-  import Modal from './Modal.svelte';
+  import Sheet from './Sheet.svelte';
+  import Button from './Button.svelte';
 
   let {
     open = $bindable(false),
@@ -18,13 +18,6 @@
     onConfirm: () => void;
   } = $props();
 
-  let cancelEl: HTMLButtonElement | null = $state(null);
-
-  $effect(() => {
-    if (!open) return;
-    tick().then(() => cancelEl?.focus());
-  });
-
   function close() {
     open = false;
   }
@@ -35,24 +28,21 @@
   }
 </script>
 
-<Modal bind:open labelledby="confirm-dialog-title" describedby="confirm-dialog-body">
-  <h2 id="confirm-dialog-title" class="mb-2 text-lg font-semibold text-slate-900">{title}</h2>
-  <p id="confirm-dialog-body" class="mb-5 text-sm text-slate-600">{body}</p>
+<Sheet bind:open labelledby="confirm-dialog-title" describedby="confirm-dialog-body" {title}>
+  <div style="padding: 8px 24px 4px; display: flex; flex-direction: column; gap: 16px;">
+    {#if body}
+      <p
+        id="confirm-dialog-body"
+        style="margin: 0; font-family: var(--font-body); font-size: var(--fs-body);
+               color: var(--ink-muted); line-height: 1.5;"
+      >
+        {body}
+      </p>
+    {/if}
 
-  <div class="flex justify-end gap-2">
-    <button
-      bind:this={cancelEl}
-      type="button"
-      onclick={close}
-      class="rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-      >Cancel</button
-    >
-    <button
-      type="button"
-      onclick={confirm}
-      class="rounded-lg px-3 py-2 text-sm font-medium text-white {danger
-        ? 'bg-rose-600 hover:bg-rose-700'
-        : 'bg-teal-600 hover:bg-teal-700'}">{confirmLabel}</button
-    >
+    <div style="display: flex; gap: 10px; padding-top: 4px;">
+      <Button variant="secondary" onclick={close} autofocus>Cancel</Button>
+      <Button variant={danger ? 'danger' : 'primary'} onclick={confirm}>{confirmLabel}</Button>
+    </div>
   </div>
-</Modal>
+</Sheet>

@@ -1,10 +1,245 @@
 @import 'tailwindcss';
 
+/* ─────────────────────────────────────────────────────────────
+   Habit Tracker — design tokens (from design_handoff_habit_tracker_polish/tokens.css)
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  /* Typography */
+  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-body: 'Manrope', system-ui, sans-serif;
+
+  /* Radius scale */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-pill: 9999px;
+
+  /* Type scale */
+  --fs-overline: 11px;
+  --fs-meta: 12px;
+  --fs-body: 14px;
+  --fs-input: 16px;
+  --fs-title: 18px;
+  --fs-display: 30px;
+  --fs-hero: 36px;
+
+  /* Shadows */
+  --shadow-1: 0 2px 8px rgba(20, 12, 40, 0.05);
+  --shadow-2: 0 8px 22px rgba(20, 12, 40, 0.08);
+  --shadow-deep: 0 30px 80px rgba(20, 12, 40, 0.28);
+  --shadow-glow: 0 8px 22px var(--accent-glow);
+
+  /* Motion */
+  --t-quick: 160ms;
+  --t-normal: 240ms;
+  --t-emphasized: 360ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.2, 1.6, 0.4, 1);
+
+  /* Color — light mode base */
+  --bg: oklch(0.972 0.012 80);
+  --surface: oklch(0.995 0.004 80);
+  --surface-2: oklch(0.945 0.014 80);
+  --line: oklch(0.91 0.012 80);
+  --line-strong: oklch(0.83 0.013 80);
+  --ink: oklch(0.21 0.018 280);
+  --ink-muted: oklch(0.52 0.014 280);
+  --ink-faint: oklch(0.72 0.014 280);
+
+  /* Default accent (violet) — overridden by html[data-accent="..."] */
+  --accent: oklch(0.62 0.22 300);
+  --accent-deep: oklch(0.46 0.22 300);
+  --accent-on: #fff;
+  --accent-soft: oklch(0.93 0.06 300);
+  --accent-fill: oklch(0.97 0.025 300);
+  --accent-glow: oklch(0.62 0.22 300 / 0.32);
+
+  --danger: oklch(0.58 0.2 25);
+  --danger-soft: oklch(0.95 0.04 25);
+}
+
+/* ── Accent variants ─────────────────────────────────────────── */
+html[data-accent='violet'] {
+  --accent: oklch(0.62 0.22 300);
+  --accent-deep: oklch(0.46 0.22 300);
+  --accent-soft: oklch(0.93 0.06 300);
+  --accent-fill: oklch(0.97 0.025 300);
+  --accent-glow: oklch(0.62 0.22 300 / 0.32);
+}
+html[data-accent='tangerine'] {
+  --accent: oklch(0.72 0.18 50);
+  --accent-deep: oklch(0.54 0.18 50);
+  --accent-soft: oklch(0.94 0.06 60);
+  --accent-fill: oklch(0.97 0.025 60);
+  --accent-glow: oklch(0.72 0.18 50 / 0.35);
+}
+html[data-accent='lime'] {
+  --accent: oklch(0.72 0.2 135);
+  --accent-deep: oklch(0.46 0.18 135);
+  --accent-soft: oklch(0.94 0.07 135);
+  --accent-fill: oklch(0.97 0.03 135);
+  --accent-on: oklch(0.2 0.05 135);
+  --accent-glow: oklch(0.72 0.2 135 / 0.32);
+}
+html[data-accent='cobalt'] {
+  --accent: oklch(0.55 0.22 260);
+  --accent-deep: oklch(0.4 0.22 260);
+  --accent-soft: oklch(0.93 0.06 260);
+  --accent-fill: oklch(0.97 0.025 260);
+  --accent-glow: oklch(0.55 0.22 260 / 0.32);
+}
+
+/* ── Dark mode ───────────────────────────────────────────────── */
+html[data-theme='dark'] {
+  --bg: oklch(0.18 0.012 280);
+  --surface: oklch(0.24 0.015 280);
+  --surface-2: oklch(0.28 0.015 280);
+  --line: oklch(0.32 0.012 280);
+  --line-strong: oklch(0.42 0.013 280);
+  --ink: oklch(0.96 0.004 280);
+  --ink-muted: oklch(0.7 0.014 280);
+  --ink-faint: oklch(0.5 0.014 280);
+}
+html[data-theme='dark'][data-accent='violet'] {
+  --accent-soft: oklch(0.3 0.08 300);
+  --accent-deep: oklch(0.82 0.16 300);
+  --accent-fill: oklch(0.26 0.04 300);
+}
+html[data-theme='dark'][data-accent='tangerine'] {
+  --accent-soft: oklch(0.3 0.08 60);
+  --accent-deep: oklch(0.82 0.14 60);
+  --accent-fill: oklch(0.26 0.04 60);
+}
+html[data-theme='dark'][data-accent='lime'] {
+  --accent-soft: oklch(0.3 0.08 135);
+  --accent-deep: oklch(0.82 0.14 135);
+  --accent-fill: oklch(0.26 0.04 135);
+}
+html[data-theme='dark'][data-accent='cobalt'] {
+  --accent-soft: oklch(0.3 0.08 260);
+  --accent-deep: oklch(0.82 0.16 260);
+  --accent-fill: oklch(0.26 0.04 260);
+}
+
+/* ── Body background ─────────────────────────────────────────── */
 html,
 body {
   height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
+html,
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background:
+    radial-gradient(1100px 700px at 50% -10%, oklch(0.94 0.04 300 / 0.5), transparent 60%),
+    radial-gradient(900px 600px at 100% 110%, oklch(0.94 0.04 30 / 0.4), transparent 60%),
+    oklch(0.96 0.008 80);
+  background-attachment: fixed;
+}
+
+/* Suppress iOS's gray tap-highlight flash on interactive elements. We
+   already provide our own focus/hover treatments. */
+button,
+[role='button'],
+a,
+input,
+textarea,
+select,
+label {
+  -webkit-tap-highlight-color: transparent;
+}
+html[data-theme='dark'] body {
+  background:
+    radial-gradient(900px 600px at 50% -10%, oklch(0.3 0.1 300 / 0.35), transparent 60%),
+    radial-gradient(800px 500px at 100% 110%, oklch(0.3 0.1 30 / 0.25), transparent 60%),
+    oklch(0.12 0.012 280);
+  background-attachment: fixed;
+}
+
+/* ── Keyframes ───────────────────────────────────────────────── */
+@keyframes streakPulse {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes streakPulseBig {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  20% {
+    transform: scale(1.35) rotate(-6deg);
+  }
+  45% {
+    transform: scale(1.1) rotate(4deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* ── Card hover lift (desktop only) ──────────────────────────── */
+@media (hover: hover) {
+  .ht-card {
+    transition:
+      transform var(--t-quick) ease,
+      box-shadow var(--t-quick) ease;
+  }
+  .ht-card:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-2) !important;
+  }
+}
+
+/* ── Focus ring ──────────────────────────────────────────────── */
+button:focus-visible,
+[role='button']:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── SortableJS ghost state ──────────────────────────────────── */
 .sortable-ghost {
   visibility: hidden;
+}
+
+/* ── Tailwind theme bridge (Tailwind v4 inline tokens) ───────── */
+@theme inline {
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-accent: var(--accent);
+  --color-accent-deep: var(--accent-deep);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fill: var(--accent-fill);
+  --color-accent-on: var(--accent-on);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-pill: var(--r-pill);
+  --shadow-1: var(--shadow-1);
+  --shadow-2: var(--shadow-2);
+  --shadow-deep: var(--shadow-deep);
+  --shadow-glow: var(--shadow-glow);
 }

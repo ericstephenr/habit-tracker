@@ -1,108 +1,95 @@
 <script lang="ts">
   import type { Section } from '$lib/types';
   import { store } from '$lib/store.svelte';
-  import { menuState } from '$lib/menuState.svelte';
-  import ConfirmDialog from './ConfirmDialog.svelte';
-  import IconChevronRight from './icons/IconChevronRight.svelte';
+  import IconChevron from './icons/IconChevron.svelte';
   import IconGrip from './icons/IconGrip.svelte';
 
-  let { section, onRename }: { section: Section; onRename: (s: Section) => void } = $props();
+  let {
+    section,
+    doneCount = 0,
+    totalCount = 0,
+    onRename
+  }: {
+    section: Section;
+    doneCount?: number;
+    totalCount?: number;
+    onRename: (s: Section) => void;
+  } = $props();
 
-  let menuOpen = $derived(menuState.isOpen(section.id));
-  let menuRef: HTMLDivElement | null = $state(null);
-  let kebabRef: HTMLButtonElement | null = $state(null);
-  let confirmOpen = $state(false);
+  let allDone = $derived(totalCount > 0 && doneCount === totalCount);
 
   function toggleCollapsed() {
     store.toggleSectionCollapsed(section.id);
   }
 
-  function toggleMenu() {
-    if (menuOpen) menuState.close();
-    else menuState.open(section.id);
+  function onRowKey(e: KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggleCollapsed();
+    }
   }
 
-  function handleRename() {
-    kebabRef?.focus();
-    menuState.close();
+  function handleGripClick(e: MouseEvent) {
+    e.stopPropagation();
     onRename(section);
   }
-
-  function handleDelete() {
-    kebabRef?.focus();
-    menuState.close();
-    confirmOpen = true;
-  }
-
-  $effect(() => {
-    if (!menuOpen) return;
-    function onDocMouseDown(e: MouseEvent) {
-      if (menuRef && !menuRef.contains(e.target as Node)) menuState.close();
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') menuState.close();
-    }
-    document.addEventListener('mousedown', onDocMouseDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocMouseDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  });
 </script>
 
-<div class="flex items-center gap-1 px-1 py-2">
+<div
+  role="button"
+  tabindex="0"
+  aria-expanded={!section.collapsed}
+  aria-label={section.collapsed ? `Expand ${section.name}` : `Collapse ${section.name}`}
+  onclick={toggleCollapsed}
+  onkeydown={onRowKey}
+  style="display: flex; align-items: center; gap: 8px;
+         padding: 6px 4px 8px;
+         border-bottom: 1px solid var(--line);
+         margin-bottom: 8px;
+         cursor: pointer;
+         user-select: none;"
+>
+  <span style="padding: 4px; display: flex; align-items: center; color: var(--ink-muted);">
+    <IconChevron dir={section.collapsed ? 'right' : 'down'} class="h-3 w-3" />
+  </span>
+  <span
+    style="font-family: var(--font-display); font-weight: 700;
+           font-size: var(--fs-meta); letter-spacing: 1.2px; text-transform: uppercase;
+           color: var(--ink);"
+  >
+    {section.name}
+  </span>
+  {#if totalCount > 0}
+    <span
+      style="font-family: var(--font-display); font-size: var(--fs-overline); font-weight: 700;
+             color: {allDone ? 'var(--accent-deep)' : 'var(--ink-faint)'};
+             background: {allDone ? 'var(--accent-soft)' : 'var(--surface-2)'};
+             padding: 2px 8px; border-radius: var(--r-pill);
+             font-variant-numeric: tabular-nums; letter-spacing: 0.2px;"
+    >
+      {doneCount}/{totalCount}
+    </span>
+  {/if}
+  <div style="flex: 1;"></div>
   <button
     type="button"
-    onclick={toggleCollapsed}
-    aria-expanded={!section.collapsed}
-    aria-label={section.collapsed ? `Expand ${section.name}` : `Collapse ${section.name}`}
-    class="flex h-7 w-7 shrink-0 items-center justify-center rounded text-slate-500 hover:bg-slate-100"
+    class="section-drag-handle"
+    onclick={handleGripClick}
+    aria-label={`Edit ${section.name}, drag to reorder`}
+    style="width: 28px; height: 28px; border: 0; background: transparent; padding: 0;
+           color: var(--ink-faint); cursor: pointer; flex-shrink: 0;
+           display: flex; align-items: center; justify-content: center;
+           border-radius: var(--r-pill); touch-action: none;
+           transition: background var(--t-quick) var(--ease-out), color var(--t-quick) var(--ease-out);"
+    onmouseenter={(e) => {
+      (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-2)';
+      (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-muted)';
+    }}
+    onmouseleave={(e) => {
+      (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+      (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
+    }}
   >
-    <IconChevronRight class="h-4 w-4 transition-transform {section.collapsed ? '' : 'rotate-90'}" />
+    <IconGrip class="h-4 w-4" />
   </button>
-  <h2 class="flex-1 truncate text-xs font-semibold tracking-wide text-slate-600 uppercase">
-    {section.name}
-  </h2>
-  <div class="relative" bind:this={menuRef}>
-    <button
-      bind:this={kebabRef}
-      type="button"
-      onclick={toggleMenu}
-      aria-label="Section options, drag to reorder"
-      aria-haspopup="menu"
-      aria-expanded={menuOpen}
-      class="section-drag-handle flex h-8 w-8 cursor-grab touch-none items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-    >
-      <IconGrip class="h-5 w-5" />
-    </button>
-    {#if menuOpen}
-      <div
-        role="menu"
-        class="absolute top-9 right-0 z-20 w-32 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
-      >
-        <button
-          type="button"
-          role="menuitem"
-          onclick={handleRename}
-          class="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50">Rename</button
-        >
-        <button
-          type="button"
-          role="menuitem"
-          onclick={handleDelete}
-          class="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
-          >Delete</button
-        >
-      </div>
-    {/if}
-  </div>
 </div>
-
-<ConfirmDialog
-  bind:open={confirmOpen}
-  title="Delete section?"
-  body={`Habits and to-dos in "${section.name}" will move to the top of their lists. No completions are lost.`}
-  confirmLabel="Delete"
-  onConfirm={() => store.deleteSection(section.id)}
-/>

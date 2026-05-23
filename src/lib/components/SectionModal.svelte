@@ -1,25 +1,26 @@
 <script lang="ts">
-  import { tick } from 'svelte';
   import type { Section } from '$lib/types';
   import { store } from '$lib/store.svelte';
-  import Modal from './Modal.svelte';
+  import Sheet from './Sheet.svelte';
+  import Button from './Button.svelte';
+  import Field from './Field.svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
 
   let { open = $bindable(false), section }: { open?: boolean; section?: Section } = $props();
 
   let name = $state('');
-  let inputEl: HTMLInputElement | null = $state(null);
   let interacted = $state(false);
+  let confirmDeleteOpen = $state(false);
 
   $effect(() => {
     if (!open) return;
     name = section?.name ?? '';
     interacted = false;
-    tick().then(() => inputEl?.focus());
+    confirmDeleteOpen = false;
   });
 
   let canSave = $derived(name.trim().length > 0);
-  let title = $derived(section ? 'Rename section' : 'New section');
-  let confirmLabel = $derived(section ? 'Save' : 'Add');
+  let errorMessage = $derived(!name.trim() ? 'Add a section name.' : '');
 
   function close() {
     open = false;
@@ -36,43 +37,76 @@
   function onInputKey(e: KeyboardEvent) {
     if (e.key === 'Enter') save();
   }
+
+  function deleteSection() {
+    if (!section) return;
+    store.deleteSection(section.id);
+    close();
+  }
+
+  const inputStyle =
+    'width: 100%; box-sizing: border-box; padding: 14px 16px; border-radius: 14px; ' +
+    'border: 1.5px solid var(--line); background: var(--surface-2); ' +
+    'font-family: var(--font-body); font-size: 16px; color: var(--ink); ' +
+    'outline: none; transition: border-color 140ms, background 140ms;';
 </script>
 
-<Modal bind:open labelledby="section-modal-title">
-  <h2 id="section-modal-title" class="mb-4 text-lg font-semibold text-slate-900">{title}</h2>
+<Sheet
+  bind:open
+  labelledby="section-modal-title"
+  title={section ? 'Rename section' : 'New section'}
+>
+  <div style="padding: 8px 24px 4px; display: flex; flex-direction: column; gap: 14px;">
+    <Field label="Section name">
+      <input
+        data-autofocus
+        type="text"
+        bind:value={name}
+        oninput={() => (interacted = true)}
+        onkeydown={onInputKey}
+        placeholder="e.g. Morning routine"
+        style={inputStyle}
+        onfocus={(e) => {
+          (e.currentTarget as HTMLInputElement).style.borderColor = 'var(--accent)';
+          (e.currentTarget as HTMLInputElement).style.background = 'var(--surface)';
+        }}
+        onblur={(e) => {
+          (e.currentTarget as HTMLInputElement).style.borderColor = 'var(--line)';
+          (e.currentTarget as HTMLInputElement).style.background = 'var(--surface-2)';
+        }}
+      />
+    </Field>
 
-  <label class="block">
-    <span class="text-sm font-medium text-slate-700">Name</span>
-    <input
-      bind:this={inputEl}
-      type="text"
-      bind:value={name}
-      oninput={() => (interacted = true)}
-      onkeydown={onInputKey}
-      placeholder="e.g. Morning"
-      aria-invalid={interacted && !canSave}
-      aria-describedby="section-modal-error"
-      class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-200 focus:outline-none aria-[invalid=true]:border-rose-400 aria-[invalid=true]:focus:ring-rose-200"
-    />
-  </label>
-
-  <p id="section-modal-error" class="mt-3 min-h-[1.25rem] text-xs text-rose-600" aria-live="polite">
-    {interacted && !canSave ? 'Add a section name.' : ''}
-  </p>
-
-  <div class="mt-3 flex justify-end gap-2">
-    <button
-      type="button"
-      onclick={close}
-      class="rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-      >Cancel</button
+    <div
+      role="alert"
+      aria-live="polite"
+      style="min-height: 20px; padding: 0 4px;
+             font-size: 12px; color: var(--danger); font-family: var(--font-body);
+             opacity: {interacted && errorMessage ? 1 : 0};
+             transition: opacity 160ms;"
     >
-    <button
-      type="button"
-      onclick={save}
-      disabled={!canSave}
-      class="rounded-lg bg-teal-600 px-3 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-      >{confirmLabel}</button
-    >
+      {errorMessage || ' '}
+    </div>
+
+    <Button variant="primary" onclick={save}>{section ? 'Save' : 'Create section'}</Button>
+
+    {#if section}
+      <Button
+        variant="ghost"
+        onclick={() => (confirmDeleteOpen = true)}
+        style=" color: var(--danger);">Delete section</Button
+      >
+    {/if}
   </div>
-</Modal>
+</Sheet>
+
+<ConfirmDialog
+  bind:open={confirmDeleteOpen}
+  title="Delete section?"
+  body={section
+    ? `Habits and tasks in "${section.name}" will move to the top of their lists. No completions are lost.`
+    : ''}
+  confirmLabel="Delete"
+  danger
+  onConfirm={deleteSection}
+/>

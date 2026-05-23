@@ -303,6 +303,20 @@ class HabitStore {
     return this.donesByHabit.get(habitId)?.has(date) === true;
   }
 
+  // Per-date progress for the day strip. Mirrors `dueHabits`/`doneCount` but
+  // accepts an arbitrary ISO date instead of reading `selectedDate`.
+  progressForDate(date: string): { done: number; total: number } {
+    let total = 0;
+    let done = 0;
+    for (const h of this.data.habits) {
+      if (!isDueOn(h, date)) continue;
+      if (h.startDate > date) continue;
+      total++;
+      if (this.donesByHabit.get(h.id)?.has(date)) done++;
+    }
+    return { done, total };
+  }
+
   addTodo(name: string): Todo {
     const todo: Todo = { id: newId(), name: name.trim(), done: false };
     this.data.todos.push(todo);

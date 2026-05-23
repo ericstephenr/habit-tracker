@@ -78,5 +78,37 @@ export function formatWeekday(dateISO: string): string {
   return WEEKDAY_LABELS[parseISO(dateISO).getDay()];
 }
 
+const MONTH_SHORT = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec'
+] as const;
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
+export function formatMonthDay(dateISO: string): string {
+  const d = parseISO(dateISO);
+  return `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
+}
+
+// Returns "Today" / "Yesterday" / "Tomorrow" / "Wed, May 21" given a date and
+// real-today reference. The relative label is reserved for the immediate window
+// only — anything further out falls back to the weekday + month/day form.
+export function smartDateTitle(dateISO: string, todayISO: string): string {
+  if (dateISO === todayISO) return 'Today';
+  if (dateISO === previousDay(todayISO)) return 'Yesterday';
+  if (dateISO === nextDay(todayISO)) return 'Tomorrow';
+  const d = parseISO(dateISO);
+  return `${DAY_SHORT[d.getDay()]}, ${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
+}
+
 export const DAY_LETTERS: ReadonlyArray<string> = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 export const DAY_NAMES: ReadonlyArray<string> = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
