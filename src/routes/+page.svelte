@@ -15,6 +15,7 @@
   import TodoModal from '$lib/components/TodoModal.svelte';
   import TodoSectionHeader from '$lib/components/TodoSectionHeader.svelte';
   import TodoSectionModal from '$lib/components/TodoSectionModal.svelte';
+  import AddMenu from '$lib/components/AddMenu.svelte';
   import DayStrip from '$lib/components/DayStrip.svelte';
   import ProgressHero from '$lib/components/ProgressHero.svelte';
   import IconPlus from '$lib/components/icons/IconPlus.svelte';
@@ -34,8 +35,7 @@
 
   let todoModalOpen = $state(false);
   let editingTodo = $state<Todo | undefined>(undefined);
-  let newTodoName = $state('');
-  let todoInputFocused = $state(false);
+  let addMenuOpen = $state(false);
 
   let todoSectionModalOpen = $state(false);
   let editingTodoSection = $state<Section | undefined>(undefined);
@@ -225,6 +225,17 @@
     modalOpen = true;
   }
 
+  function openAddTodo() {
+    editingTodo = undefined;
+    todoModalOpen = true;
+  }
+
+  function handleAddMenuSelect(choice: 'habit' | 'task') {
+    addMenuOpen = false;
+    if (choice === 'habit') openAdd();
+    else openAddTodo();
+  }
+
   function openEdit(h: Habit) {
     editingHabit = h;
     modalOpen = true;
@@ -253,14 +264,6 @@
   function openRenameTodoSection(s: Section) {
     editingTodoSection = s;
     todoSectionModalOpen = true;
-  }
-
-  function addTodoFromInput(e: Event) {
-    e.preventDefault();
-    const trimmed = newTodoName.trim();
-    if (!trimmed) return;
-    store.addTodo(trimmed);
-    newTodoName = '';
   }
 
   function downloadBackup() {
@@ -387,21 +390,21 @@
         </h1>
       </div>
       <div style="flex: 1;"></div>
-      {#if hasStructure}
+      <div style="position: relative;">
         <button
           type="button"
-          onclick={openAdd}
-          aria-label="Add habit"
-          style="display: inline-flex; align-items: center; gap: 6px;
-                 padding: 10px 16px 10px 14px; border: 0; border-radius: 99px;
+          onclick={() => (addMenuOpen = !addMenuOpen)}
+          aria-label="Add new"
+          aria-expanded={addMenuOpen}
+          style="width: 40px; height: 40px; border: 0; border-radius: var(--r-pill);
                  background: var(--accent); color: var(--accent-on);
-                 font-family: var(--font-display); font-size: 14px; font-weight: 600;
+                 display: flex; align-items: center; justify-content: center;
                  cursor: pointer; box-shadow: 0 4px 14px var(--accent-glow);"
         >
-          <IconPlus class="h-4 w-4" />
-          New habit
+          <IconPlus class="h-5 w-5" />
         </button>
-      {/if}
+        <AddMenu bind:open={addMenuOpen} anchor="below" onSelect={handleAddMenuSelect} />
+      </div>
       <button
         type="button"
         onclick={() => (dataModalOpen = true)}
@@ -665,24 +668,6 @@
             </div>
           </div>
 
-          <form onsubmit={addTodoFromInput}>
-            <input
-              type="text"
-              bind:value={newTodoName}
-              onfocus={() => (todoInputFocused = true)}
-              onblur={() => (todoInputFocused = false)}
-              placeholder="Add a task — press Enter"
-              aria-label="Add a task"
-              style="width: 100%; box-sizing: border-box;
-                     padding: 14px 16px; border-radius: 14px;
-                     border: 1.5px solid {todoInputFocused ? 'var(--accent)' : 'var(--line)'};
-                     background: {todoInputFocused ? 'var(--surface)' : 'var(--surface-2)'};
-                     font-family: var(--font-body); font-size: 16px;
-                     color: var(--ink); outline: none;
-                     transition: border-color 140ms, background 140ms;"
-            />
-          </form>
-
           <!-- Sections container (sortable for reordering sections) -->
           <div bind:this={todoSectionsContainerRef} style="margin-top: 18px;">
             {#each store.todoGroups as group (group.section?.id ?? '__ungrouped')}
@@ -752,9 +737,7 @@
                 style="font-family: var(--font-body); font-size: 14px;
                        color: var(--ink-muted); line-height: 1.4;"
               >
-                {todosDone > 0
-                  ? 'Nice work — your list is empty.'
-                  : 'Add one above or create a section.'}
+                {todosDone > 0 ? 'Nice work — your list is empty.' : 'Tap + to add one.'}
               </div>
             </div>
           {/if}
@@ -791,11 +774,20 @@
     {/if}
   </main>
 
-  <!-- FAB (mobile + habits tab + has structure) -->
-  {#if !isDesktop && activeTab === 'habits' && hasStructure}
-    <button type="button" onclick={openAdd} aria-label="Add habit" class="fab">
-      <IconPlus class="h-7 w-7" />
-    </button>
+  <!-- FAB (mobile) -->
+  {#if !isDesktop}
+    <div class="fab-wrap">
+      <button
+        type="button"
+        onclick={() => (addMenuOpen = !addMenuOpen)}
+        aria-label="Add new"
+        aria-expanded={addMenuOpen}
+        class="fab"
+      >
+        <IconPlus class="h-7 w-7" />
+      </button>
+      <AddMenu bind:open={addMenuOpen} anchor="above" onSelect={handleAddMenuSelect} />
+    </div>
   {/if}
 </div>
 
@@ -855,10 +847,13 @@
     margin: 0 auto;
   }
 
-  .fab {
+  .fab-wrap {
     position: fixed;
     right: calc(20px + env(safe-area-inset-right));
     bottom: calc(20px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .fab {
     width: 58px;
     height: 58px;
     border: 0;
@@ -873,7 +868,6 @@
     transition:
       transform 160ms var(--ease-spring),
       box-shadow var(--t-quick) var(--ease-out);
-    z-index: 20;
   }
   .fab:active {
     transform: scale(0.92) rotate(-8deg);
