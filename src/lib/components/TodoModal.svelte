@@ -9,18 +9,27 @@
   let { open = $bindable(false), todo }: { open?: boolean; todo?: Todo } = $props();
 
   let name = $state('');
+  let sectionId = $state('');
+  let openDate = $state('');
+  let dueDate = $state('');
   let interacted = $state(false);
   let confirmDeleteOpen = $state(false);
 
   $effect(() => {
     if (!open) return;
     name = todo?.name ?? '';
+    sectionId = todo?.sectionId ?? '';
+    openDate = todo?.openDate ?? '';
+    dueDate = todo?.dueDate ?? '';
     interacted = false;
     confirmDeleteOpen = false;
   });
 
-  let canSave = $derived(name.trim().length > 0);
-  let errorMessage = $derived(!name.trim() ? 'Add a task name.' : '');
+  let dateError = $derived(
+    openDate && dueDate && openDate > dueDate ? 'Open date must be before the due date.' : ''
+  );
+  let canSave = $derived(name.trim().length > 0 && !dateError);
+  let errorMessage = $derived(!name.trim() ? 'Add a task name.' : dateError);
 
   function close() {
     open = false;
@@ -29,10 +38,16 @@
   function save() {
     interacted = true;
     if (!canSave) return;
+    const patch = {
+      name,
+      sectionId: sectionId || undefined,
+      openDate: openDate || undefined,
+      dueDate: dueDate || undefined
+    };
     if (todo) {
-      store.renameTodo(todo.id, name);
+      store.updateTodo(todo.id, patch);
     } else {
-      store.addTodo(name);
+      store.addTodo(patch);
     }
     close();
   }
@@ -53,6 +68,8 @@
     'font-family: var(--font-body); font-size: 16px; color: var(--ink); ' +
     'outline: none; transition: border-color 140ms, background 140ms;';
 
+  const selectStyle = inputStyle + ' appearance: none; cursor: pointer;';
+
   function onFieldFocus(e: FocusEvent) {
     const el = e.currentTarget as HTMLElement;
     el.style.borderColor = 'var(--accent)';
@@ -65,7 +82,7 @@
   }
 </script>
 
-<Sheet bind:open labelledby="todo-modal-title" title={todo ? 'Rename task' : 'New task'}>
+<Sheet bind:open labelledby="todo-modal-title" title={todo ? 'Edit task' : 'New task'}>
   <div style="padding: 8px 24px 4px; display: flex; flex-direction: column; gap: 14px;">
     <Field label="Task">
       <input
@@ -75,6 +92,45 @@
         oninput={() => (interacted = true)}
         onkeydown={onInputKey}
         placeholder="e.g. Buy groceries"
+        style={inputStyle}
+        onfocus={onFieldFocus}
+        onblur={onFieldBlur}
+      />
+    </Field>
+
+    {#if store.data.todoSections.length > 0}
+      <Field label="Section (optional)">
+        <select
+          bind:value={sectionId}
+          onchange={() => (interacted = true)}
+          style={selectStyle}
+          onfocus={onFieldFocus}
+          onblur={onFieldBlur}
+        >
+          <option value="">No section</option>
+          {#each store.data.todoSections as s (s.id)}
+            <option value={s.id}>{s.name}</option>
+          {/each}
+        </select>
+      </Field>
+    {/if}
+
+    <Field label="Opens (optional)">
+      <input
+        type="date"
+        bind:value={openDate}
+        oninput={() => (interacted = true)}
+        style={inputStyle}
+        onfocus={onFieldFocus}
+        onblur={onFieldBlur}
+      />
+    </Field>
+
+    <Field label="Due (optional)">
+      <input
+        type="date"
+        bind:value={dueDate}
+        oninput={() => (interacted = true)}
         style={inputStyle}
         onfocus={onFieldFocus}
         onblur={onFieldBlur}
@@ -92,7 +148,9 @@
       {errorMessage || ' '}
     </div>
 
-    <Button variant="primary" onclick={save}>{todo ? 'Save' : 'Create task'}</Button>
+    <Button variant="primary" disabled={!canSave} onclick={save}
+      >{todo ? 'Save' : 'Create task'}</Button
+    >
 
     {#if todo}
       <Button

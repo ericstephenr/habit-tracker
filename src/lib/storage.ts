@@ -12,7 +12,7 @@ import { emptyAppData } from './types';
 
 export const STORAGE_KEY = 'habit-tracker:v1';
 export const BACKUP_KEY = 'habit-tracker:backup';
-export const CURRENT_VERSION = 5 as const;
+export const CURRENT_VERSION = 6 as const;
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -85,6 +85,14 @@ function isTodo(t: unknown): t is Todo {
   if (typeof t.id !== 'string' || t.id.length === 0) return false;
   if (typeof t.name !== 'string') return false;
   if (typeof t.done !== 'boolean') return false;
+  if ('sectionId' in t && t.sectionId !== undefined && typeof t.sectionId !== 'string')
+    return false;
+  if ('openDate' in t && t.openDate !== undefined) {
+    if (typeof t.openDate !== 'string' || !ISO_DATE_RE.test(t.openDate)) return false;
+  }
+  if ('dueDate' in t && t.dueDate !== undefined) {
+    if (typeof t.dueDate !== 'string' || !ISO_DATE_RE.test(t.dueDate)) return false;
+  }
   return true;
 }
 
@@ -95,7 +103,8 @@ type VersionedData = { version: number; [k: string]: unknown };
 const migrations: Record<number, (data: VersionedData) => VersionedData> = {
   2: (d) => ({ ...d, version: 3, sections: [] }),
   3: (d) => ({ ...d, version: 4, todos: [] }),
-  4: (d) => ({ ...d, version: 5 })
+  4: (d) => ({ ...d, version: 5 }),
+  5: (d) => ({ ...d, version: 6, todoSections: [] })
 };
 
 export function migrate(parsed: unknown): AppData | null {
@@ -121,15 +130,17 @@ export function migrate(parsed: unknown): AppData | null {
     return h;
   });
   const completions = Array.isArray(data.completions) ? data.completions.filter(isCompletion) : [];
+  const todoSections = Array.isArray(data.todoSections) ? data.todoSections.filter(isSection) : [];
+  const validTodoSectionIds = new Set(todoSections.map((s) => s.id));
   const todos = (Array.isArray(data.todos) ? data.todos.filter(isTodo) : []).map((t) => {
-    if ('sectionId' in t) {
+    if (t.sectionId !== undefined && !validTodoSectionIds.has(t.sectionId)) {
       const cleaned = { ...t };
-      delete (cleaned as { sectionId?: string }).sectionId;
+      delete cleaned.sectionId;
       return cleaned;
     }
     return t;
   });
-  return { version: CURRENT_VERSION, habits, completions, sections, todos };
+  return { version: CURRENT_VERSION, habits, completions, sections, todos, todoSections };
 }
 
 function backupRaw(raw: string): void {

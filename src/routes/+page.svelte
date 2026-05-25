@@ -13,6 +13,8 @@
   import SectionHeader from '$lib/components/SectionHeader.svelte';
   import SectionModal from '$lib/components/SectionModal.svelte';
   import TodoModal from '$lib/components/TodoModal.svelte';
+  import TodoSectionHeader from '$lib/components/TodoSectionHeader.svelte';
+  import TodoSectionModal from '$lib/components/TodoSectionModal.svelte';
   import DayStrip from '$lib/components/DayStrip.svelte';
   import ProgressHero from '$lib/components/ProgressHero.svelte';
   import IconPlus from '$lib/components/icons/IconPlus.svelte';
@@ -34,11 +36,15 @@
   let newTodoName = $state('');
   let todoInputFocused = $state(false);
 
+  let todoSectionModalOpen = $state(false);
+  let editingTodoSection = $state<Section | undefined>(undefined);
+
   let ungroupedUlRef: HTMLUListElement | undefined = $state();
   let sectionsContainerRef: HTMLDivElement | undefined = $state();
   const sectionUlMap = new SvelteMap<string, HTMLUListElement>();
 
-  let ungroupedTodosUlRef: HTMLUListElement | undefined = $state();
+  let todoSectionsContainerRef: HTMLDivElement | undefined = $state();
+  const todoSectionUlMap = new SvelteMap<string, HTMLUListElement>();
 
   let isDesktop = $state(false);
 
@@ -63,6 +69,7 @@
   };
 
   const TODO_SORTABLE_OPTS: Sortable.Options = {
+    group: 'todos',
     animation: 150,
     handle: '.drag-handle',
     delay: 150,
@@ -70,6 +77,16 @@
     forceFallback: true,
     ghostClass: 'drop-indicator',
     onEnd: onTodoDragEnd
+  };
+
+  const TODO_SECTION_SORTABLE_OPTS: Sortable.Options = {
+    animation: 150,
+    handle: '.todo-section-drag-handle',
+    delay: 150,
+    delayOnTouchOnly: true,
+    forceFallback: true,
+    draggable: '[data-todo-section-id]',
+    onEnd: onTodoSectionDragEnd
   };
 
   const SECTION_SORTABLE_OPTS: Sortable.Options = {
@@ -114,9 +131,42 @@
     store.commitLayout(groups);
   }
 
-  function onTodoDragEnd() {
-    if (!ungroupedTodosUlRef) return;
-    store.commitTodoLayout(readIds(ungroupedTodosUlRef));
+  function readTodoGroupsFromDom(): Array<{ sectionId: string | undefined; todoIds: string[] }> {
+    const groups: Array<{ sectionId: string | undefined; todoIds: string[] }> = [];
+    // Ungrouped bucket (no section)
+    const ungroupedUl = todoSectionUlMap.get('__ungrouped');
+    if (ungroupedUl) {
+      groups.push({ sectionId: undefined, todoIds: readIds(ungroupedUl) });
+    }
+    for (const s of store.data.todoSections) {
+      const ul = todoSectionUlMap.get(s.id);
+      if (ul) {
+        groups.push({ sectionId: s.id, todoIds: readIds(ul) });
+      } else {
+        groups.push({
+          sectionId: s.id,
+          todoIds: store.data.todos.filter((t) => t.sectionId === s.id && !t.done).map((t) => t.id)
+        });
+      }
+    }
+    return groups;
+  }
+
+  function onTodoDragEnd(evt: Sortable.SortableEvent) {
+    if (evt.from !== evt.to) evt.item.remove();
+    const groups = readTodoGroupsFromDom();
+    const sectionIds = store.data.todoSections.map((s) => s.id);
+    store.commitTodoLayout(groups, sectionIds);
+  }
+
+  function onTodoSectionDragEnd(evt: Sortable.SortableEvent) {
+    const container = evt.from;
+    const ids = [...container.querySelectorAll<HTMLElement>(':scope > [data-todo-section-id]')].map(
+      (el) => el.dataset.todoSectionId!
+    );
+    // Reorder by calling commitTodoLayout with unchanged todo groups but reordered section ids
+    const groups = readTodoGroupsFromDom();
+    store.commitTodoLayout(groups, ids);
   }
 
   function onSectionDragEnd(evt: Sortable.SortableEvent) {
@@ -138,6 +188,17 @@
     };
   }
 
+  function registerTodoSectionUl(node: HTMLUListElement, key: string) {
+    todoSectionUlMap.set(key, node);
+    const inst = Sortable.create(node, TODO_SORTABLE_OPTS);
+    return {
+      destroy() {
+        todoSectionUlMap.delete(key);
+        inst.destroy();
+      }
+    };
+  }
+
   $effect(() => {
     if (!ungroupedUlRef) return;
     const inst = Sortable.create(ungroupedUlRef, HABIT_SORTABLE_OPTS);
@@ -151,8 +212,8 @@
   });
 
   $effect(() => {
-    if (!ungroupedTodosUlRef) return;
-    const inst = Sortable.create(ungroupedTodosUlRef, TODO_SORTABLE_OPTS);
+    if (!todoSectionsContainerRef) return;
+    const inst = Sortable.create(todoSectionsContainerRef, TODO_SECTION_SORTABLE_OPTS);
     return () => inst.destroy();
   });
 
@@ -183,6 +244,16 @@
     todoModalOpen = true;
   }
 
+  function openAddTodoSection() {
+    editingTodoSection = undefined;
+    todoSectionModalOpen = true;
+  }
+
+  function openRenameTodoSection(s: Section) {
+    editingTodoSection = s;
+    todoSectionModalOpen = true;
+  }
+
   function addTodoFromInput(e: Event) {
     e.preventDefault();
     const trimmed = newTodoName.trim();
@@ -209,9 +280,6 @@
 
   let todosOpen = $derived(store.data.todos.filter((t) => !t.done).length);
   let todosDone = $derived(store.data.todos.filter((t) => t.done).length);
-  // Hybrid tasks view: undone tasks live in their (optional) section; done
-  // tasks pool into a flat DONE bucket at the bottom regardless of section.
-  let undoneTodos = $derived(store.data.todos.filter((t) => !t.done));
   let allDoneTodos = $derived(store.data.todos.filter((t) => t.done));
 
   // ── Confetti on day-complete transition ─────────────────────────
@@ -442,21 +510,27 @@
               {/each}
             </div>
 
-            <div style="display: flex; justify-content: center; padding-top: 8px;">
-              <button
-                type="button"
-                onclick={openAddSection}
-                style="display: inline-flex; align-items: center; gap: 5px;
-                       padding: 8px 14px 8px 11px; border-radius: 99px;
-                       background: var(--surface-2); color: var(--ink-muted);
-                       border: 0; cursor: pointer;
-                       font-family: var(--font-display); font-size: 12px; font-weight: 600;
-                       letter-spacing: 0.1px;
-                       transition: background var(--t-quick) var(--ease-out);"
-              >
-                <IconPlus class="h-[13px] w-[13px]" /> Section
-              </button>
-            </div>
+            <button
+              type="button"
+              onclick={openAddSection}
+              style="margin-top: 14px; padding: 8px 12px;
+                     border: 1.5px dashed var(--line); border-radius: var(--r-md);
+                     background: transparent; color: var(--ink-faint);
+                     font-family: var(--font-display); font-size: 12px; font-weight: 700;
+                     letter-spacing: 0.6px; text-transform: uppercase;
+                     cursor: pointer; width: 100%;
+                     transition: border-color var(--t-quick), color var(--t-quick);"
+              onmouseenter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)';
+              }}
+              onmouseleave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--line)';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
+              }}
+            >
+              + New section
+            </button>
           </div>
         {:else}
           <!-- Empty state: Let's build a habit -->
@@ -536,7 +610,7 @@
                      font-variant-numeric: tabular-nums; text-transform: uppercase;"
             >
               {store.data.todos.length === 0
-                ? 'A place for one-off to-dos.'
+                ? 'A place for assignments and to-dos.'
                 : `${todosOpen} open${todosDone > 0 ? ` · ${todosDone} done` : ''}`}
             </div>
           </div>
@@ -559,21 +633,58 @@
             />
           </form>
 
-          <ul
-            bind:this={ungroupedTodosUlRef}
-            style="list-style: none; padding: 0; margin: 18px 0 0;
-                   display: flex; flex-direction: column; gap: 8px;
-                   min-height: {undoneTodos.length === 0 ? '8px' : 'auto'};"
-          >
-            {#each undoneTodos as todo (todo.id)}
-              <li data-id={todo.id}>
-                <TodoItem {todo} onEdit={openEditTodo} />
-              </li>
-            {/each}
-          </ul>
+          <!-- Sections container (sortable for reordering sections) -->
+          <div bind:this={todoSectionsContainerRef} style="margin-top: 18px;">
+            {#each store.todoGroups as group (group.section?.id ?? '__ungrouped')}
+              {@const sectionKey = group.section?.id ?? '__ungrouped'}
+              <div data-todo-section-id={group.section?.id}>
+                {#if group.section}
+                  <TodoSectionHeader section={group.section} onRename={openRenameTodoSection} />
+                {/if}
 
-          <!-- Empty state when no undone tasks (spec: "All clear." vs "No tasks yet.") -->
-          {#if todosOpen === 0}
+                {#if !group.section?.collapsed}
+                  <ul
+                    use:registerTodoSectionUl={sectionKey}
+                    style="list-style: none; padding: 0; margin: 0 0 {group.section ? '18px' : '0'};
+                           display: flex; flex-direction: column; gap: 8px;
+                           min-height: 8px;"
+                  >
+                    {#each group.todos as todo (todo.id)}
+                      <li data-id={todo.id}>
+                        <TodoItem {todo} onEdit={openEditTodo} />
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+              </div>
+            {/each}
+          </div>
+
+          <!-- + New section button -->
+          <button
+            type="button"
+            onclick={openAddTodoSection}
+            style="margin-top: 14px; padding: 8px 12px;
+                   border: 1.5px dashed var(--line); border-radius: var(--r-md);
+                   background: transparent; color: var(--ink-faint);
+                   font-family: var(--font-display); font-size: 12px; font-weight: 700;
+                   letter-spacing: 0.6px; text-transform: uppercase;
+                   cursor: pointer; width: 100%;
+                   transition: border-color var(--t-quick), color var(--t-quick);"
+            onmouseenter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)';
+              (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)';
+            }}
+            onmouseleave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--line)';
+              (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
+            }}
+          >
+            + New section
+          </button>
+
+          <!-- Empty state when no undone tasks -->
+          {#if todosOpen === 0 && store.data.todoSections.length === 0}
             <div
               class="ht-card"
               style="margin-top: 14px; padding: 28px 20px; text-align: center;
@@ -593,7 +704,7 @@
               >
                 {todosDone > 0
                   ? 'Nice work — your list is empty.'
-                  : 'Add one above to get started.'}
+                  : 'Add one above or create a section.'}
               </div>
             </div>
           {/if}
@@ -641,6 +752,7 @@
 <AddHabitModal bind:open={modalOpen} habit={editingHabit} />
 <SectionModal bind:open={sectionModalOpen} section={editingSection} />
 <TodoModal bind:open={todoModalOpen} todo={editingTodo} />
+<TodoSectionModal bind:open={todoSectionModalOpen} section={editingTodoSection} />
 <DataModal bind:open={dataModalOpen} />
 
 <style>

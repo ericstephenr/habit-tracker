@@ -9,6 +9,7 @@
     parseImportText,
     readFile
   } from '$lib/importExport';
+  import { readBackup, clearBackup } from '$lib/storage';
   import type { AppData } from '$lib/types';
   import Sheet from './Sheet.svelte';
   import SegmentToggle from './SegmentToggle.svelte';
@@ -22,6 +23,7 @@
   let confirmResetOpen = $state(false);
   let confirmBody = $state('');
   let fileInputEl: HTMLInputElement | null = $state(null);
+  let browserBackupRaw = $state<string | null>(null);
 
   $effect(() => {
     if (!open) {
@@ -30,7 +32,10 @@
       confirmImportOpen = false;
       confirmResetOpen = false;
       if (fileInputEl) fileInputEl.value = '';
+      return;
     }
+    // Re-check on every open so the button reflects current backup state.
+    browserBackupRaw = readBackup();
   });
 
   function close() {
@@ -90,6 +95,34 @@
     close();
   }
 
+  function restoreFromBrowserBackup() {
+    if (!browserBackupRaw) return;
+    errorMessage = '';
+    const result = parseImportText(browserBackupRaw);
+    if (!result.ok) {
+      errorMessage = result.error;
+      return;
+    }
+    const pluralize = (n: number, w: string) => (n === 1 ? `${n} ${w}` : `${n} ${w}s`);
+    const cur = store.data;
+    const nxt = result.data;
+    pendingImport = nxt;
+    confirmBody =
+      `Restore ${pluralize(nxt.habits.length, 'habit')}, ` +
+      `${pluralize(nxt.completions.length, 'completion')}, ` +
+      `${pluralize(nxt.sections.length, 'section')} and ` +
+      `${pluralize(nxt.todos.length, 'task')} from the browser backup? ` +
+      `Your current ${pluralize(cur.habits.length, 'habit')} and ` +
+      `${pluralize(cur.todos.length, 'task')} will be replaced.`;
+    confirmImportOpen = true;
+  }
+
+  function doReplace_andClearBackup() {
+    doReplace();
+    clearBackup();
+    browserBackupRaw = null;
+  }
+
   function doReset() {
     store.replaceAll(emptyAppData());
     close();
@@ -132,6 +165,12 @@
       <span aria-hidden="true" style={iconStyle()}>↑</span>
       Import from backup
     </button>
+    {#if browserBackupRaw}
+      <button onclick={restoreFromBrowserBackup} style={rowStyle()}>
+        <span aria-hidden="true" style={iconStyle()}>↩</span>
+        Restore from browser backup
+      </button>
+    {/if}
     <button onclick={() => (confirmResetOpen = true)} style={rowStyle(true)}>
       <span aria-hidden="true" style={iconStyle(true)}>⟲</span>
       Reset all data
@@ -210,7 +249,7 @@
   body={confirmBody}
   confirmLabel="Replace"
   danger
-  onConfirm={doReplace}
+  onConfirm={doReplace_andClearBackup}
 />
 
 <ConfirmDialog

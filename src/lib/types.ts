@@ -46,20 +46,25 @@ export type Todo = {
   id: string;
   name: string;
   done: boolean;
+  sectionId?: string;
+  openDate?: string;
+  dueDate?: string;
 };
 
 export type AppData = {
-  version: 5;
+  version: 6;
   habits: Habit[];
   completions: Completion[];
   sections: Section[];
   todos: Todo[];
+  todoSections: Section[];
 };
 
 export const emptyAppData = (): AppData => ({
-  version: 5,
+  version: 6,
   habits: [],
   completions: [],
   sections: [],
-  todos: []
+  todos: [],
+  todoSections: []
 });

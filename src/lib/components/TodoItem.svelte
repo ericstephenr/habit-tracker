@@ -1,12 +1,28 @@
 <script lang="ts">
   import type { Todo } from '$lib/types';
   import { store } from '$lib/store.svelte';
+  import { currentDate } from '$lib/currentDate.svelte';
+  import { formatDueDate, formatMonthDay } from '$lib/schedule';
   import IconCheck from './icons/IconCheck.svelte';
   import IconGrip from './icons/IconGrip.svelte';
 
   let { todo, onEdit }: { todo: Todo; onEdit: (t: Todo) => void } = $props();
 
   let pressed = $state(false);
+
+  let today = $derived(currentDate.value);
+  let isNotYetOpen = $derived(!!todo.openDate && todo.openDate > today && !todo.done);
+  let chipLabel = $derived(todo.dueDate && !todo.done ? formatDueDate(todo.dueDate, today) : null);
+  let chipColors = $derived.by(() => {
+    if (!chipLabel) return null;
+    if (chipLabel === 'Overdue') return { color: 'var(--danger)', bg: 'var(--danger-soft)' };
+    if (chipLabel === 'Today') return { color: 'var(--warn)', bg: 'var(--warn-soft)' };
+    if (chipLabel === 'Tomorrow') return { color: 'var(--caution)', bg: 'var(--caution-soft)' };
+    // Short weekday names (Mon–Sun) are within 7 days
+    if (chipLabel.length <= 3 && !chipLabel.includes(' '))
+      return { color: 'var(--caution)', bg: 'var(--caution-soft)' };
+    return { color: 'var(--ink-muted)', bg: 'var(--surface-2)' };
+  });
 
   function toggle() {
     store.toggleTodo(todo.id);
@@ -56,17 +72,39 @@
     </span>
   </button>
 
-  <span
-    title={todo.name}
-    style="flex: 1; min-width: 0;
-           font-family: var(--font-body); font-size: var(--fs-input); font-weight: 500;
-           color: var(--ink); opacity: {todo.done ? 0.5 : 1};
-           overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-           {todo.done ? 'text-decoration: line-through;' : ''}
-           transition: all 200ms;"
-  >
-    {todo.name}
+  <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+    <span
+      title={todo.name}
+      style="font-family: var(--font-body); font-size: var(--fs-input); font-weight: 500;
+             color: var(--ink); opacity: {todo.done ? 0.5 : isNotYetOpen ? 0.45 : 1};
+             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+             {todo.done ? 'text-decoration: line-through;' : ''}
+             transition: all 200ms;"
+    >
+      {todo.name}
+    </span>
+    {#if isNotYetOpen}
+      <span
+        style="font-size: 11px; color: var(--ink-faint);
+               font-family: var(--font-display); font-weight: 600; letter-spacing: 0.1px;"
+      >
+        Opens {formatMonthDay(todo.openDate!)}
+      </span>
+    {/if}
   </span>
+
+  {#if chipLabel && chipColors}
+    <span
+      style="flex-shrink: 0; padding: 3px 8px; border-radius: var(--r-pill);
+             font-family: var(--font-display); font-size: 11px; font-weight: 700;
+             letter-spacing: 0.2px;
+             background: {chipColors.bg}; color: {chipColors.color};
+             white-space: nowrap;"
+      aria-label="Due {chipLabel}"
+    >
+      {chipLabel}
+    </span>
+  {/if}
 
   <button
     type="button"

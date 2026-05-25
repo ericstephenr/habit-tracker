@@ -113,3 +113,14 @@ export function smartDateTitle(dateISO: string, todayISO: string): string {
 
 export const DAY_LETTERS: ReadonlyArray<string> = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 export const DAY_NAMES: ReadonlyArray<string> = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+export function formatDueDate(dueDateISO: string, todayISO_: string): string {
+  if (dueDateISO < todayISO_) return 'Overdue';
+  if (dueDateISO === todayISO_) return 'Today';
+  if (dueDateISO === nextDay(todayISO_)) return 'Tomorrow';
+  const due = parseISO(dueDateISO);
+  const today = parseISO(todayISO_);
+  const diffDays = Math.round((due.getTime() - today.getTime()) / 86400000);
+  if (diffDays <= 7) return DAY_NAMES[due.getDay()] as string;
+  return formatMonthDay(dueDateISO);
+}

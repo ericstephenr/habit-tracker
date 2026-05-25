@@ -6,6 +6,8 @@ import { effectiveTarget, isDueOn, normalizeDays } from './schedule';
 import { selectedDate } from './selectedDate.svelte';
 import { STORAGE_KEY, loadInitial, migrate, save } from './storage';
 
+export type TodoGroup = { section: Section | undefined; todos: Todo[] };
+
 export type NewHabitInput =
   | { type: 'binary'; name: string; days: DayOfWeek[]; startDate: string; notes?: string }
   | {
@@ -68,6 +70,23 @@ class HabitStore {
     ];
     for (const s of this.data.sections) {
       groups.push({ section: s, habits: bySection.get(s.id) ?? [] });
+    }
+    return groups;
+  });
+
+  todoGroups = $derived.by((): TodoGroup[] => {
+    const validIds = new SvelteSet(this.data.todoSections.map((s) => s.id));
+    const bySection = new SvelteMap<string | null, Todo[]>();
+    bySection.set(null, []);
+    for (const s of this.data.todoSections) bySection.set(s.id, []);
+    for (const t of this.data.todos) {
+      if (t.done) continue;
+      const key = t.sectionId && validIds.has(t.sectionId) ? t.sectionId : null;
+      bySection.get(key)!.push(t);
+    }
+    const groups: TodoGroup[] = [{ section: undefined, todos: bySection.get(null) ?? [] }];
+    for (const s of this.data.todoSections) {
+      groups.push({ section: s, todos: bySection.get(s.id) ?? [] });
     }
     return groups;
   });
@@ -296,11 +315,44 @@ class HabitStore {
     return { done, total };
   }
 
-  addTodo(name: string): Todo {
-    const todo: Todo = { id: newId(), name: name.trim(), done: false };
+  addTodo(
+    nameOrInput: string | { name: string; sectionId?: string; openDate?: string; dueDate?: string }
+  ): Todo {
+    const input = typeof nameOrInput === 'string' ? { name: nameOrInput } : nameOrInput;
+    const todo: Todo = {
+      id: newId(),
+      name: input.name.trim(),
+      done: false,
+      ...(input.sectionId ? { sectionId: input.sectionId } : {}),
+      ...(input.openDate ? { openDate: input.openDate } : {}),
+      ...(input.dueDate ? { dueDate: input.dueDate } : {})
+    };
     this.data.todos.push(todo);
     save(this.data);
     return todo;
+  }
+
+  updateTodo(
+    id: string,
+    patch: Partial<Pick<Todo, 'name' | 'sectionId' | 'openDate' | 'dueDate'>>
+  ): boolean {
+    const t = this.data.todos.find((x) => x.id === id);
+    if (!t) return false;
+    if (patch.name !== undefined) t.name = patch.name.trim();
+    if ('sectionId' in patch) {
+      if (patch.sectionId) t.sectionId = patch.sectionId;
+      else delete t.sectionId;
+    }
+    if ('openDate' in patch) {
+      if (patch.openDate) t.openDate = patch.openDate;
+      else delete t.openDate;
+    }
+    if ('dueDate' in patch) {
+      if (patch.dueDate) t.dueDate = patch.dueDate;
+      else delete t.dueDate;
+    }
+    save(this.data);
+    return true;
   }
 
   toggleTodo(id: string): void {
@@ -308,14 +360,6 @@ class HabitStore {
     if (!t) return;
     t.done = !t.done;
     save(this.data);
-  }
-
-  renameTodo(id: string, name: string): boolean {
-    const t = this.data.todos.find((x) => x.id === id);
-    if (!t) return false;
-    t.name = name.trim();
-    save(this.data);
-    return true;
   }
 
   deleteTodo(id: string): boolean {
@@ -326,19 +370,72 @@ class HabitStore {
     return true;
   }
 
-  commitTodoLayout(todoIds: string[]): void {
+  commitTodoLayout(
+    groups: Array<{ sectionId: string | undefined; todoIds: string[] }>,
+    todoSectionIds: string[]
+  ): void {
     const byId = new Map(this.data.todos.map((t) => [t.id, t]));
     const next: Todo[] = [];
     const seen = new SvelteSet<string>();
-    for (const id of todoIds) {
-      const t = byId.get(id);
-      if (!t || seen.has(id)) continue;
-      seen.add(id);
-      next.push(t);
+    for (const g of groups) {
+      for (const id of g.todoIds) {
+        const t = byId.get(id);
+        if (!t || seen.has(id)) continue;
+        seen.add(id);
+        if (g.sectionId) t.sectionId = g.sectionId;
+        else delete t.sectionId;
+        next.push(t);
+      }
     }
     for (const t of this.data.todos) if (!seen.has(t.id)) next.push(t);
     this.data.todos = next;
+
+    const sectionById = new Map(this.data.todoSections.map((s) => [s.id, s]));
+    const nextSections: Section[] = [];
+    const seenSections = new SvelteSet<string>();
+    for (const id of todoSectionIds) {
+      const s = sectionById.get(id);
+      if (!s || seenSections.has(id)) continue;
+      seenSections.add(id);
+      nextSections.push(s);
+    }
+    for (const s of this.data.todoSections) if (!seenSections.has(s.id)) nextSections.push(s);
+    this.data.todoSections = nextSections;
+
     save(this.data);
+  }
+
+  addTodoSection(name: string): Section {
+    const section: Section = { id: newId(), name: name.trim(), collapsed: false };
+    this.data.todoSections.push(section);
+    save(this.data);
+    return section;
+  }
+
+  renameTodoSection(id: string, name: string): boolean {
+    const s = this.data.todoSections.find((x) => x.id === id);
+    if (!s) return false;
+    s.name = name.trim();
+    save(this.data);
+    return true;
+  }
+
+  toggleTodoSectionCollapsed(id: string): void {
+    const s = this.data.todoSections.find((x) => x.id === id);
+    if (!s) return;
+    s.collapsed = !s.collapsed;
+    save(this.data);
+  }
+
+  deleteTodoSection(id: string): boolean {
+    const idx = this.data.todoSections.findIndex((s) => s.id === id);
+    if (idx === -1) return false;
+    this.data.todoSections.splice(idx, 1);
+    for (const t of this.data.todos) {
+      if (t.sectionId === id) delete t.sectionId;
+    }
+    save(this.data);
+    return true;
   }
 }
 
