@@ -12,8 +12,12 @@
   import IconPlus from './icons/IconPlus.svelte';
   import IconChevron from './icons/IconChevron.svelte';
 
-  let { habit, onEdit, date }: { habit: Habit; onEdit: (h: Habit) => void; date: string } =
-    $props();
+  let {
+    habit,
+    onEdit,
+    date,
+    inactive = false
+  }: { habit: Habit; onEdit: (h: Habit) => void; date: string; inactive?: boolean } = $props();
 
   let expanded = $state(false);
   let pressed = $state(false);
@@ -63,8 +67,14 @@
 
   <div
     class="ht-card"
-    style="background: {done ? 'var(--accent-fill)' : 'var(--surface)'}; border-radius: var(--r-lg);
-           border: 1px solid {done ? 'var(--accent-soft)' : 'var(--line)'};
+    style="background: {inactive
+      ? 'var(--surface-2)'
+      : done
+        ? 'var(--accent-fill)'
+        : 'var(--surface)'}; border-radius: var(--r-lg);
+           border: {inactive
+      ? '1.5px dashed var(--line-strong)'
+      : `1px solid ${done ? 'var(--accent-soft)' : 'var(--line)'}`};
            box-shadow: var(--shadow-1);
            overflow: hidden; position: relative;
            transition: background var(--t-normal) var(--ease-out),
@@ -139,7 +149,7 @@
           <span
             title={habit.name}
             style="font-family: var(--font-body); font-size: var(--fs-input); font-weight: 500;
-                   color: var(--ink); opacity: {done ? 0.55 : 1};
+                   color: var(--ink); opacity: {inactive ? 0.5 : done ? 0.55 : 1};
                    transition: all 200ms;
                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
           >
@@ -158,7 +168,7 @@
           title={habit.name}
           style="flex: 1; min-width: 0;
                  font-family: var(--font-body); font-size: var(--fs-input); font-weight: 500;
-                 color: var(--ink); opacity: {done ? 0.55 : 1};
+                 color: var(--ink); opacity: {inactive ? 0.5 : done ? 0.55 : 1};
                  transition: all 200ms;
                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
         >

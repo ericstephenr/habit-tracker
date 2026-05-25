@@ -23,6 +23,7 @@
   import { SvelteMap } from 'svelte/reactivity';
 
   let activeTab = $state<'habits' | 'todos'>('habits');
+  let showAll = $state(false);
 
   let modalOpen = $state(false);
   let dataModalOpen = $state(false);
@@ -269,18 +270,33 @@
   }
 
   let hasStructure = $derived(store.hasAnyHabit || store.data.sections.length > 0);
-  let ungroupedGroup = $derived(store.dueGroups[0]);
-  let sectionGroups = $derived(store.dueGroups.slice(1));
+  let activeGroups = $derived(showAll ? store.allStartedGroups : store.dueGroups);
+  let ungroupedGroup = $derived(activeGroups[0]);
+  let sectionGroups = $derived(activeGroups.slice(1));
+
+  function isInactive(habit: Habit): boolean {
+    return showAll && !store.dueHabitIds.has(habit.id);
+  }
 
   function habitGroupCounts(habits: Habit[]) {
     let done = 0;
-    for (const h of habits) if (store.isDone(h.id, selectedDate.value)) done++;
-    return { done, total: habits.length };
+    let total = 0;
+    for (const h of habits) {
+      if (!store.dueHabitIds.has(h.id)) continue;
+      total++;
+      if (store.isDone(h.id, selectedDate.value)) done++;
+    }
+    return { done, total };
   }
 
   let todosOpen = $derived(store.data.todos.filter((t) => !t.done).length);
   let todosDone = $derived(store.data.todos.filter((t) => t.done).length);
   let allDoneTodos = $derived(store.data.todos.filter((t) => t.done));
+
+  $effect(() => {
+    void selectedDate.value;
+    showAll = false;
+  });
 
   // ── Confetti on day-complete transition ─────────────────────────
   let lastComplete = { date: '', complete: false };
@@ -452,6 +468,30 @@
 
         {#if hasStructure}
           <div style="padding: 22px 16px 0; display: flex; flex-direction: column; gap: 10px;">
+            {#if store.extraHabitCount > 0}
+              <div
+                style="display: flex; align-items: center; justify-content: flex-end;
+                          padding: 0 4px 0;"
+              >
+                <button
+                  type="button"
+                  onclick={() => (showAll = !showAll)}
+                  aria-pressed={showAll}
+                  aria-label={showAll ? 'Show only scheduled habits' : 'Show all habits'}
+                  style="display: inline-flex; align-items: center; gap: 5px;
+                         padding: 5px 12px; border-radius: 99px;
+                         border: 1.5px solid {showAll ? 'var(--accent-soft)' : 'var(--line)'};
+                         background: {showAll ? 'var(--accent-fill)' : 'transparent'};
+                         color: {showAll ? 'var(--accent-ink)' : 'var(--ink-faint)'};
+                         font-family: var(--font-display); font-size: 11px; font-weight: 700;
+                         letter-spacing: 0.4px; text-transform: uppercase;
+                         cursor: pointer;
+                         transition: all var(--t-quick) var(--ease-out);"
+                >
+                  {showAll ? 'Scheduled only' : `Show all (${store.extraHabitCount})`}
+                </button>
+              </div>
+            {/if}
             <ul
               bind:this={ungroupedUlRef}
               style="list-style: none; padding: 0; margin: 0;
@@ -460,7 +500,12 @@
             >
               {#each ungroupedGroup.habits as habit (habit.id)}
                 <li data-id={habit.id}>
-                  <HabitItem {habit} date={selectedDate.value} onEdit={openEdit} />
+                  <HabitItem
+                    {habit}
+                    date={selectedDate.value}
+                    onEdit={openEdit}
+                    inactive={isInactive(habit)}
+                  />
                 </li>
               {/each}
             </ul>
@@ -492,7 +537,12 @@
                       >
                         {#each group.habits as habit (habit.id)}
                           <li data-id={habit.id}>
-                            <HabitItem {habit} date={selectedDate.value} onEdit={openEdit} />
+                            <HabitItem
+                              {habit}
+                              date={selectedDate.value}
+                              onEdit={openEdit}
+                              inactive={isInactive(habit)}
+                            />
                           </li>
                         {/each}
                       </ul>

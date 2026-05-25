@@ -74,6 +74,33 @@ class HabitStore {
     return groups;
   });
 
+  allStartedHabits = $derived.by(() => {
+    const date = selectedDate.value;
+    return this.data.habits.filter((h) => h.startDate <= date);
+  });
+
+  dueHabitIds = $derived(new SvelteSet(this.dueHabits.map((h) => h.id)));
+
+  allStartedGroups = $derived.by(() => {
+    const validSectionIds = new SvelteSet(this.data.sections.map((s) => s.id));
+    const bySection = new SvelteMap<string | null, Habit[]>();
+    bySection.set(null, []);
+    for (const s of this.data.sections) bySection.set(s.id, []);
+    for (const h of this.allStartedHabits) {
+      const key = h.sectionId && validSectionIds.has(h.sectionId) ? h.sectionId : null;
+      bySection.get(key)!.push(h);
+    }
+    const groups: Array<{ section: Section | null; habits: Habit[] }> = [
+      { section: null, habits: bySection.get(null) ?? [] }
+    ];
+    for (const s of this.data.sections) {
+      groups.push({ section: s, habits: bySection.get(s.id) ?? [] });
+    }
+    return groups;
+  });
+
+  extraHabitCount = $derived(this.allStartedHabits.length - this.dueHabits.length);
+
   todoGroups = $derived.by((): TodoGroup[] => {
     const validIds = new SvelteSet(this.data.todoSections.map((s) => s.id));
     const bySection = new SvelteMap<string | null, Todo[]>();
