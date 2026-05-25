@@ -154,8 +154,8 @@
   }
 
   function onTodoDragEnd(evt: Sortable.SortableEvent) {
-    if (evt.from !== evt.to) evt.item.remove();
     const groups = readTodoGroupsFromDom();
+    if (evt.from !== evt.to) evt.item.remove();
     const sectionIds = store.data.todoSections.map((s) => s.id);
     store.commitTodoLayout(groups, sectionIds);
   }
