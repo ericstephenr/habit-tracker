@@ -85,7 +85,7 @@
     </span>
     {#if isNotYetOpen}
       <span
-        style="font-size: 11px; color: var(--ink-faint);
+        style="font-size: var(--fs-overline); color: var(--ink-faint);
                font-family: var(--font-display); font-weight: 600; letter-spacing: 0.1px;"
       >
         Opens {formatMonthDay(todo.openDate!)}
@@ -96,7 +96,7 @@
   {#if chipLabel && chipColors}
     <span
       style="flex-shrink: 0; padding: 3px 8px; border-radius: var(--r-pill);
-             font-family: var(--font-display); font-size: 11px; font-weight: 700;
+             font-family: var(--font-display); font-size: var(--fs-overline); font-weight: 700;
              letter-spacing: 0.2px;
              background: {chipColors.bg}; color: {chipColors.color};
              white-space: nowrap;"
@@ -125,6 +125,6 @@
       (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
     }}
   >
-    <IconGrip class="h-4 w-4" />
+    <IconGrip class="h-5 w-5" />
   </button>
 </div>

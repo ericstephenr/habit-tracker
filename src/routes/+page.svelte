@@ -469,7 +469,7 @@
                          border: 1.5px solid {showAll ? 'var(--accent-soft)' : 'var(--line)'};
                          background: {showAll ? 'var(--accent-fill)' : 'transparent'};
                          color: {showAll ? 'var(--accent-ink)' : 'var(--ink-faint)'};
-                         font-family: var(--font-display); font-size: 11px; font-weight: 700;
+                         font-family: var(--font-display); font-size: var(--fs-overline); font-weight: 700;
                          letter-spacing: 0.4px; text-transform: uppercase;
                          cursor: pointer;
                          transition: all var(--t-quick) var(--ease-out);"
@@ -492,11 +492,12 @@
                   <div
                     style="display: grid;
                            grid-template-rows: {group.section.collapsed ? '0fr' : '1fr'};
+                           overflow: {group.section.collapsed ? 'hidden' : 'visible'};
                            transition: grid-template-rows var(--t-normal) var(--ease-out);"
                   >
                     <div
                       style="overflow: hidden; min-height: 0;
-                             padding-top: 10px; margin-top: -10px;"
+                             padding: 10px 16px 0; margin: -10px -16px 0;"
                     >
                       <ul
                         use:registerSectionUl={group.section.id}
@@ -535,7 +536,7 @@
               style="margin-top: 14px; padding: 8px 12px;
                      border: 1.5px dashed var(--line); border-radius: var(--r-md);
                      background: transparent; color: var(--ink-faint);
-                     font-family: var(--font-display); font-size: 12px; font-weight: 700;
+                     font-family: var(--font-display); font-size: var(--fs-meta); font-weight: 700;
                      letter-spacing: 0.6px; text-transform: uppercase;
                      cursor: pointer; width: 100%;
                      transition: border-color var(--t-quick), color var(--t-quick);"
@@ -624,7 +625,7 @@
               Tasks<span style="color: var(--accent);">.</span>
             </div>
             <div
-              style="margin-top: 6px; font-size: 12px; font-weight: 600;
+              style="margin-top: 6px; font-size: var(--fs-meta); font-weight: 600;
                      letter-spacing: 0.2px; color: var(--ink-faint);
                      font-variant-numeric: tabular-nums; text-transform: uppercase;"
             >
@@ -665,7 +666,7 @@
             style="margin-top: 14px; padding: 8px 12px;
                    border: 1.5px dashed var(--line); border-radius: var(--r-md);
                    background: transparent; color: var(--ink-faint);
-                   font-family: var(--font-display); font-size: 12px; font-weight: 700;
+                   font-family: var(--font-display); font-size: var(--fs-meta); font-weight: 700;
                    letter-spacing: 0.6px; text-transform: uppercase;
                    cursor: pointer; width: 100%;
                    transition: border-color var(--t-quick), color var(--t-quick);"
@@ -710,7 +711,7 @@
             <div style="margin-top: 24px;">
               <div
                 style="padding: 0 4px 10px;
-                       font-family: var(--font-display); font-size: 11px; font-weight: 700;
+                       font-family: var(--font-display); font-size: var(--fs-overline); font-weight: 700;
                        letter-spacing: 1.4px; text-transform: uppercase;
                        color: var(--ink-faint);
                        display: flex; align-items: center; gap: 8px;"
@@ -719,7 +720,7 @@
                 <span
                   style="padding: 2px 7px; border-radius: 99px;
                          background: var(--surface-2); color: var(--ink-muted);
-                         font-size: 10px; letter-spacing: 0.4px;
+                         font-size: var(--fs-overline); letter-spacing: 0.4px;
                          font-variant-numeric: tabular-nums;"
                 >
                   {todosDone}

@@ -187,7 +187,7 @@
             onclick={dec}
             disabled={isFuture || count === 0}
             aria-label={`Decrease ${habit.name} by ${habit.counter.step}${unitSuffix}`}
-            style="width: 26px; height: 26px; border: 0; padding: 0;
+            style="width: var(--counter-btn); height: var(--counter-btn); border: 0; padding: 0;
                    background: transparent; border-radius: 9999px;
                    color: var(--ink-muted); cursor: pointer;
                    display: flex; align-items: center; justify-content: center;
@@ -202,14 +202,14 @@
                    display: inline-flex; flex-direction: column; align-items: center; line-height: 1;"
           >
             <span
-              style="font-family: var(--font-display); font-size: 13px; font-weight: 700;
+              style="font-family: var(--font-display); font-size: var(--fs-body); font-weight: 700;
                      color: var(--ink); font-variant-numeric: tabular-nums;"
             >
               {count}<span style="color: var(--ink-faint); font-weight: 600;">/{target}</span>
             </span>
             {#if habit.counter.unit}
               <span
-                style="margin-top: 2px; font-size: 9px; font-weight: 600; color: var(--ink-faint);
+                style="margin-top: 2px; font-size: var(--fs-overline); font-weight: 600; color: var(--ink-faint);
                        text-transform: uppercase; letter-spacing: 0.5px;"
               >
                 {habit.counter.unit}
@@ -221,7 +221,7 @@
             onclick={inc}
             disabled={isFuture}
             aria-label={`Increase ${habit.name} by ${habit.counter.step}${unitSuffix}`}
-            style="width: 26px; height: 26px; border: 0; padding: 0;
+            style="width: var(--counter-btn); height: var(--counter-btn); border: 0; padding: 0;
                    background: transparent; border-radius: 9999px;
                    color: var(--ink-muted); cursor: pointer;
                    display: flex; align-items: center; justify-content: center;
@@ -255,7 +255,7 @@
           (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
         }}
       >
-        <IconGrip class="h-4 w-4" />
+        <IconGrip class="h-5 w-5" />
       </button>
     </div>
 

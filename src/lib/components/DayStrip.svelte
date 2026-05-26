@@ -54,7 +54,7 @@
     >
       <span
         style="display: inline-flex; align-items: center; gap: 3px; line-height: 1;
-               font-size: 10px; font-weight: 700; letter-spacing: 0.8px;
+               font-size: var(--fs-overline); font-weight: 700; letter-spacing: 0.8px;
                text-transform: uppercase;
                color: {cell.isSelected ? 'var(--accent-ink)' : 'var(--ink-faint)'};"
       >
@@ -67,7 +67,7 @@
         {cell.letter}
       </span>
       <span
-        style="width: 34px; height: 34px; border-radius: 9999px;
+        style="width: var(--day-circle); height: var(--day-circle); border-radius: 9999px;
                display: flex; align-items: center; justify-content: center;
                background: {cell.isSelected
           ? 'var(--accent)'
@@ -80,7 +80,7 @@
             ? 'var(--accent-ink)'
             : 'var(--ink)'};
                font-family: var(--font-display); font-weight: 700;
-               font-size: 17px; font-variant-numeric: tabular-nums;
+               font-size: var(--fs-title); font-variant-numeric: tabular-nums;
                box-shadow: {cell.isSelected ? '0 4px 14px var(--accent-glow)' : 'none'};
                transition: all var(--t-normal) var(--ease-out);"
       >

@@ -40,7 +40,7 @@
         {title}<span style="color: var(--accent);">.</span>
       </div>
       <div
-        style="margin-top: 6px; font-size: 12px; font-weight: 600;
+        style="margin-top: 6px; font-size: var(--fs-meta); font-weight: 600;
                letter-spacing: 0.2px; color: var(--ink-faint);
                font-variant-numeric: tabular-nums; text-transform: uppercase;"
       >
@@ -55,7 +55,7 @@
       style="visibility: {selectedDate.isToday ? 'hidden' : 'visible'};
              background: var(--accent-soft); color: var(--accent-ink);
              border: 0; padding: 6px 12px; border-radius: 99px;
-             font-family: var(--font-body); font-size: 12px; font-weight: 600;
+             font-family: var(--font-body); font-size: var(--fs-meta); font-weight: 600;
              cursor: pointer; white-space: nowrap;
              transition: opacity 200ms;"
     >
@@ -82,7 +82,7 @@
         <div style="display: flex; align-items: baseline; gap: 6px; min-width: 0;">
           <span
             style="font-family: var(--font-display); font-weight: 700;
-                   font-size: 36px; line-height: 1; letter-spacing: -1.5px;
+                   font-size: var(--fs-hero); line-height: 1; letter-spacing: -1.5px;
                    color: {complete ? 'var(--accent-on)' : 'var(--ink)'};
                    font-variant-numeric: tabular-nums;"
           >
@@ -90,7 +90,7 @@
           </span>
           <span
             style="font-family: var(--font-display); font-weight: 600;
-                   font-size: 18px;
+                   font-size: var(--fs-title);
                    color: {complete ? 'rgba(255,255,255,0.7)' : 'var(--ink-muted)'};
                    font-variant-numeric: tabular-nums;"
           >
@@ -99,18 +99,18 @@
         </div>
         <span
           style="font-family: var(--font-display); font-weight: 700;
-                 font-size: 28px; line-height: 1; letter-spacing: -1.2px;
+                 font-size: var(--fs-display); line-height: 1; letter-spacing: -1.2px;
                  color: {complete ? 'var(--accent-on)' : 'var(--ink)'};
                  font-variant-numeric: tabular-nums; flex-shrink: 0;"
         >
           {pct}<span
-            style="font-size: 18px; font-weight: 600; margin-left: 1px;
+            style="font-size: var(--fs-title); font-weight: 600; margin-left: 1px;
                    color: {complete ? 'rgba(255,255,255,0.7)' : 'var(--ink-muted)'};">%</span
           >
         </span>
       </div>
       <div
-        style="margin-top: 4px; font-size: 13px; font-weight: 600;
+        style="margin-top: 4px; font-size: var(--fs-body); font-weight: 600;
                color: {complete ? 'rgba(255,255,255,0.9)' : 'var(--ink-muted)'};
                letter-spacing: 0.1px;"
       >

@@ -58,7 +58,7 @@
              padding: 3px 9px 3px 7px; border-radius: 9999px;
              background: {s.background}; color: {s.color}; border: {s.border};
              box-shadow: {s.shadow};
-             font-family: var(--font-display); font-size: 11px; font-weight: 700;
+             font-family: var(--font-display); font-size: var(--fs-overline); font-weight: 700;
              font-variant-numeric: tabular-nums;
              line-height: 1; letter-spacing: 0.2px;
              animation: {justCrossed
