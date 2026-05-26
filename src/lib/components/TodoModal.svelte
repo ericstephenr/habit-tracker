@@ -18,7 +18,7 @@
   $effect(() => {
     if (!open) return;
     name = todo?.name ?? '';
-    sectionId = todo?.sectionId ?? '';
+    sectionId = todo?.sectionId ?? store.data.todoSections[0]?.id ?? '';
     openDate = todo?.openDate ?? '';
     dueDate = todo?.dueDate ?? '';
     interacted = false;
@@ -40,7 +40,7 @@
     if (!canSave) return;
     const patch = {
       name,
-      sectionId: sectionId || undefined,
+      sectionId,
       openDate: openDate || undefined,
       dueDate: dueDate || undefined
     };
@@ -98,22 +98,19 @@
       />
     </Field>
 
-    {#if store.data.todoSections.length > 0}
-      <Field label="Section (optional)">
-        <select
-          bind:value={sectionId}
-          onchange={() => (interacted = true)}
-          style={selectStyle}
-          onfocus={onFieldFocus}
-          onblur={onFieldBlur}
-        >
-          <option value="">No section</option>
-          {#each store.data.todoSections as s (s.id)}
-            <option value={s.id}>{s.name}</option>
-          {/each}
-        </select>
-      </Field>
-    {/if}
+    <Field label="Section">
+      <select
+        bind:value={sectionId}
+        onchange={() => (interacted = true)}
+        style={selectStyle}
+        onfocus={onFieldFocus}
+        onblur={onFieldBlur}
+      >
+        {#each store.data.todoSections as s (s.id)}
+          <option value={s.id}>{s.name}</option>
+        {/each}
+      </select>
+    </Field>
 
     <Field label="Opens (optional)">
       <input

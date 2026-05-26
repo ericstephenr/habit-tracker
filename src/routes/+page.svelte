@@ -40,7 +40,6 @@
   let todoSectionModalOpen = $state(false);
   let editingTodoSection = $state<Section | undefined>(undefined);
 
-  let ungroupedUlRef: HTMLUListElement | undefined = $state();
   let sectionsContainerRef: HTMLDivElement | undefined = $state();
   const sectionUlMap = new SvelteMap<string, HTMLUListElement>();
 
@@ -104,11 +103,8 @@
     return [...ul.querySelectorAll<HTMLElement>(':scope > [data-id]')].map((el) => el.dataset.id!);
   }
 
-  function readGroupsFromDom(): Array<{ sectionId: string | null; habitIds: string[] }> {
-    const groups: Array<{ sectionId: string | null; habitIds: string[] }> = [];
-    if (ungroupedUlRef) {
-      groups.push({ sectionId: null, habitIds: readIds(ungroupedUlRef) });
-    }
+  function readGroupsFromDom(): Array<{ sectionId: string; habitIds: string[] }> {
+    const groups: Array<{ sectionId: string; habitIds: string[] }> = [];
     for (const section of store.data.sections) {
       const ul = sectionUlMap.get(section.id);
       if (ul) {
@@ -132,13 +128,8 @@
     store.commitLayout(groups);
   }
 
-  function readTodoGroupsFromDom(): Array<{ sectionId: string | undefined; todoIds: string[] }> {
-    const groups: Array<{ sectionId: string | undefined; todoIds: string[] }> = [];
-    // Ungrouped bucket (no section)
-    const ungroupedUl = todoSectionUlMap.get('__ungrouped');
-    if (ungroupedUl) {
-      groups.push({ sectionId: undefined, todoIds: readIds(ungroupedUl) });
-    }
+  function readTodoGroupsFromDom(): Array<{ sectionId: string; todoIds: string[] }> {
+    const groups: Array<{ sectionId: string; todoIds: string[] }> = [];
     for (const s of store.data.todoSections) {
       const ul = todoSectionUlMap.get(s.id);
       if (ul) {
@@ -199,12 +190,6 @@
       }
     };
   }
-
-  $effect(() => {
-    if (!ungroupedUlRef) return;
-    const inst = Sortable.create(ungroupedUlRef, HABIT_SORTABLE_OPTS);
-    return () => inst.destroy();
-  });
 
   $effect(() => {
     if (!sectionsContainerRef) return;
@@ -272,10 +257,8 @@
     downloadJson(`habit-tracker-backup-${todayISO()}.json`, raw);
   }
 
-  let hasStructure = $derived(store.hasAnyHabit || store.data.sections.length > 0);
+  let hasStructure = $derived(store.hasAnyHabit);
   let activeGroups = $derived(showAll ? store.allStartedGroups : store.dueGroups);
-  let ungroupedGroup = $derived(activeGroups[0]);
-  let sectionGroups = $derived(activeGroups.slice(1));
 
   function isInactive(habit: Habit): boolean {
     return showAll && !store.dueHabitIds.has(habit.id);
@@ -495,37 +478,20 @@
                 </button>
               </div>
             {/if}
-            <ul
-              bind:this={ungroupedUlRef}
-              style="list-style: none; padding: 0; margin: 0;
-                     display: flex; flex-direction: column; gap: 10px;
-                     min-height: {ungroupedGroup.habits.length === 0 ? '8px' : 'auto'};"
-            >
-              {#each ungroupedGroup.habits as habit (habit.id)}
-                <li data-id={habit.id}>
-                  <HabitItem
-                    {habit}
-                    date={selectedDate.value}
-                    onEdit={openEdit}
-                    inactive={isInactive(habit)}
-                  />
-                </li>
-              {/each}
-            </ul>
 
             <div bind:this={sectionsContainerRef}>
-              {#each sectionGroups as group (group.section!.id)}
+              {#each activeGroups as group (group.section.id)}
                 {@const counts = habitGroupCounts(group.habits)}
-                <section data-section-id={group.section!.id} style="margin-top: 14px;">
+                <section data-section-id={group.section.id} style="margin-top: 14px;">
                   <SectionHeader
-                    section={group.section!}
+                    section={group.section}
                     doneCount={counts.done}
                     totalCount={counts.total}
                     onRename={openRename}
                   />
                   <div
                     style="display: grid;
-                           grid-template-rows: {group.section!.collapsed ? '0fr' : '1fr'};
+                           grid-template-rows: {group.section.collapsed ? '0fr' : '1fr'};
                            transition: grid-template-rows var(--t-normal) var(--ease-out);"
                   >
                     <div
@@ -533,7 +499,7 @@
                              padding-top: 10px; margin-top: -10px;"
                     >
                       <ul
-                        use:registerSectionUl={group.section!.id}
+                        use:registerSectionUl={group.section.id}
                         style="list-style: none; padding: 0; margin: 0;
                                display: flex; flex-direction: column; gap: 10px;
                                min-height: {group.habits.length === 0 ? '8px' : 'auto'};"
@@ -670,17 +636,14 @@
 
           <!-- Sections container (sortable for reordering sections) -->
           <div bind:this={todoSectionsContainerRef} style="margin-top: 18px;">
-            {#each store.todoGroups as group (group.section?.id ?? '__ungrouped')}
-              {@const sectionKey = group.section?.id ?? '__ungrouped'}
-              <div data-todo-section-id={group.section?.id}>
-                {#if group.section}
-                  <TodoSectionHeader section={group.section} onRename={openRenameTodoSection} />
-                {/if}
+            {#each store.todoGroups as group (group.section.id)}
+              <div data-todo-section-id={group.section.id}>
+                <TodoSectionHeader section={group.section} onRename={openRenameTodoSection} />
 
-                {#if !group.section?.collapsed}
+                {#if !group.section.collapsed}
                   <ul
-                    use:registerTodoSectionUl={sectionKey}
-                    style="list-style: none; padding: 0; margin: 0 0 {group.section ? '18px' : '0'};
+                    use:registerTodoSectionUl={group.section.id}
+                    style="list-style: none; padding: 0; margin: 0 0 18px;
                            display: flex; flex-direction: column; gap: 8px;
                            min-height: 8px;"
                   >
@@ -719,7 +682,7 @@
           </button>
 
           <!-- Empty state when no undone tasks -->
-          {#if todosOpen === 0 && store.data.todoSections.length === 0}
+          {#if todosOpen === 0 && todosDone === 0}
             <div
               class="ht-card"
               style="margin-top: 14px; padding: 28px 20px; text-align: center;

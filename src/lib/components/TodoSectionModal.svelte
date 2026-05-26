@@ -90,7 +90,7 @@
 
     <Button variant="primary" onclick={save}>{section ? 'Save' : 'Create section'}</Button>
 
-    {#if section}
+    {#if section && store.data.todoSections.length > 1}
       <Button
         variant="ghost"
         onclick={() => (confirmDeleteOpen = true)}
@@ -103,7 +103,7 @@
 <ConfirmDialog
   bind:open={confirmDeleteOpen}
   title="Delete section?"
-  body={section ? `Tasks in "${section.name}" will move to the top of the list.` : ''}
+  body={section ? `Tasks in "${section.name}" will move to the first section.` : ''}
   confirmLabel="Delete"
   danger
   onConfirm={deleteSection}

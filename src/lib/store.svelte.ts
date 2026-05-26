@@ -6,7 +6,7 @@ import { effectiveTarget, isDueOn, normalizeDays } from './schedule';
 import { selectedDate } from './selectedDate.svelte';
 import { STORAGE_KEY, loadInitial, migrate, save } from './storage';
 
-export type TodoGroup = { section: Section | undefined; todos: Todo[] };
+export type TodoGroup = { section: Section; todos: Todo[] };
 
 export type NewHabitInput =
   | { type: 'binary'; name: string; days: DayOfWeek[]; startDate: string; notes?: string }
@@ -53,25 +53,16 @@ class HabitStore {
     return this.data.habits.filter((h) => isDueOn(h, date) && h.startDate <= date);
   });
 
-  // Grouped view of dueHabits: the ungrouped bucket first, then each section in
-  // data.sections order. All section buckets render even when empty so headers
-  // persist and the UI always has a drop target.
   dueGroups = $derived.by(() => {
+    const fallback = this.data.sections[0]?.id;
     const validSectionIds = new SvelteSet(this.data.sections.map((s) => s.id));
-    const bySection = new SvelteMap<string | null, Habit[]>();
-    bySection.set(null, []);
+    const bySection = new SvelteMap<string, Habit[]>();
     for (const s of this.data.sections) bySection.set(s.id, []);
     for (const h of this.dueHabits) {
-      const key = h.sectionId && validSectionIds.has(h.sectionId) ? h.sectionId : null;
-      bySection.get(key)!.push(h);
+      const key = validSectionIds.has(h.sectionId) ? h.sectionId : fallback;
+      if (key) bySection.get(key)?.push(h);
     }
-    const groups: Array<{ section: Section | null; habits: Habit[] }> = [
-      { section: null, habits: bySection.get(null) ?? [] }
-    ];
-    for (const s of this.data.sections) {
-      groups.push({ section: s, habits: bySection.get(s.id) ?? [] });
-    }
-    return groups;
+    return this.data.sections.map((s) => ({ section: s, habits: bySection.get(s.id) ?? [] }));
   });
 
   allStartedHabits = $derived.by(() => {
@@ -82,40 +73,30 @@ class HabitStore {
   dueHabitIds = $derived(new SvelteSet(this.dueHabits.map((h) => h.id)));
 
   allStartedGroups = $derived.by(() => {
+    const fallback = this.data.sections[0]?.id;
     const validSectionIds = new SvelteSet(this.data.sections.map((s) => s.id));
-    const bySection = new SvelteMap<string | null, Habit[]>();
-    bySection.set(null, []);
+    const bySection = new SvelteMap<string, Habit[]>();
     for (const s of this.data.sections) bySection.set(s.id, []);
     for (const h of this.allStartedHabits) {
-      const key = h.sectionId && validSectionIds.has(h.sectionId) ? h.sectionId : null;
-      bySection.get(key)!.push(h);
+      const key = validSectionIds.has(h.sectionId) ? h.sectionId : fallback;
+      if (key) bySection.get(key)?.push(h);
     }
-    const groups: Array<{ section: Section | null; habits: Habit[] }> = [
-      { section: null, habits: bySection.get(null) ?? [] }
-    ];
-    for (const s of this.data.sections) {
-      groups.push({ section: s, habits: bySection.get(s.id) ?? [] });
-    }
-    return groups;
+    return this.data.sections.map((s) => ({ section: s, habits: bySection.get(s.id) ?? [] }));
   });
 
   extraHabitCount = $derived(this.allStartedHabits.length - this.dueHabits.length);
 
   todoGroups = $derived.by((): TodoGroup[] => {
+    const fallback = this.data.todoSections[0]?.id;
     const validIds = new SvelteSet(this.data.todoSections.map((s) => s.id));
-    const bySection = new SvelteMap<string | null, Todo[]>();
-    bySection.set(null, []);
+    const bySection = new SvelteMap<string, Todo[]>();
     for (const s of this.data.todoSections) bySection.set(s.id, []);
     for (const t of this.data.todos) {
       if (t.done) continue;
-      const key = t.sectionId && validIds.has(t.sectionId) ? t.sectionId : null;
-      bySection.get(key)!.push(t);
+      const key = validIds.has(t.sectionId) ? t.sectionId : fallback;
+      if (key) bySection.get(key)?.push(t);
     }
-    const groups: TodoGroup[] = [{ section: undefined, todos: bySection.get(null) ?? [] }];
-    for (const s of this.data.todoSections) {
-      groups.push({ section: s, todos: bySection.get(s.id) ?? [] });
-    }
-    return groups;
+    return this.data.todoSections.map((s) => ({ section: s, todos: bySection.get(s.id) ?? [] }));
   });
 
   doneCount = $derived.by(() => {
@@ -161,13 +142,14 @@ class HabitStore {
     save(this.data);
   }
 
-  addHabit(input: NewHabitInput): Habit {
+  addHabit(input: NewHabitInput & { sectionId?: string }): Habit {
     const trimmedNotes = input.notes?.trim();
     const base = {
       id: newId(),
       name: input.name.trim(),
       schedule: { type: 'weekly_days' as const, days: normalizeDays(input.days) },
       startDate: input.startDate,
+      sectionId: input.sectionId || this.data.sections[0].id,
       ...(trimmedNotes ? { notes: trimmedNotes } : {})
     };
     const habit: Habit =
@@ -213,11 +195,7 @@ class HabitStore {
     return count;
   }
 
-  // One commit per drag end. `groups` is the new layout: each group is the
-  // ordered habit IDs for that bucket. `null` is the ungrouped bucket.
-  // Habits the UI didn't include (not due today) keep their existing
-  // sectionId & relative order and are appended at the end.
-  commitLayout(groups: Array<{ sectionId: string | null; habitIds: string[] }>): void {
+  commitLayout(groups: Array<{ sectionId: string; habitIds: string[] }>): void {
     const byId = new Map(this.data.habits.map((h) => [h.id, h]));
     const next: Habit[] = [];
     const seen = new SvelteSet<string>();
@@ -226,11 +204,7 @@ class HabitStore {
         const h = byId.get(id);
         if (!h || seen.has(id)) continue;
         seen.add(id);
-        if (g.sectionId === null) {
-          if (h.sectionId !== undefined) delete h.sectionId;
-        } else {
-          h.sectionId = g.sectionId;
-        }
+        h.sectionId = g.sectionId;
         next.push(h);
       }
     }
@@ -262,11 +236,13 @@ class HabitStore {
   }
 
   deleteSection(id: string): boolean {
+    if (this.data.sections.length <= 1) return false;
     const idx = this.data.sections.findIndex((s) => s.id === id);
     if (idx === -1) return false;
     this.data.sections.splice(idx, 1);
+    const fallback = this.data.sections[0].id;
     for (const h of this.data.habits) {
-      if (h.sectionId === id) delete h.sectionId;
+      if (h.sectionId === id) h.sectionId = fallback;
     }
     save(this.data);
     return true;
@@ -342,15 +318,12 @@ class HabitStore {
     return { done, total };
   }
 
-  addTodo(
-    nameOrInput: string | { name: string; sectionId?: string; openDate?: string; dueDate?: string }
-  ): Todo {
-    const input = typeof nameOrInput === 'string' ? { name: nameOrInput } : nameOrInput;
+  addTodo(input: { name: string; sectionId?: string; openDate?: string; dueDate?: string }): Todo {
     const todo: Todo = {
       id: newId(),
       name: input.name.trim(),
       done: false,
-      ...(input.sectionId ? { sectionId: input.sectionId } : {}),
+      sectionId: input.sectionId || this.data.todoSections[0].id,
       ...(input.openDate ? { openDate: input.openDate } : {}),
       ...(input.dueDate ? { dueDate: input.dueDate } : {})
     };
@@ -366,10 +339,7 @@ class HabitStore {
     const t = this.data.todos.find((x) => x.id === id);
     if (!t) return false;
     if (patch.name !== undefined) t.name = patch.name.trim();
-    if ('sectionId' in patch) {
-      if (patch.sectionId) t.sectionId = patch.sectionId;
-      else delete t.sectionId;
-    }
+    if (patch.sectionId) t.sectionId = patch.sectionId;
     if ('openDate' in patch) {
       if (patch.openDate) t.openDate = patch.openDate;
       else delete t.openDate;
@@ -398,7 +368,7 @@ class HabitStore {
   }
 
   commitTodoLayout(
-    groups: Array<{ sectionId: string | undefined; todoIds: string[] }>,
+    groups: Array<{ sectionId: string; todoIds: string[] }>,
     todoSectionIds: string[]
   ): void {
     const byId = new Map(this.data.todos.map((t) => [t.id, t]));
@@ -409,8 +379,7 @@ class HabitStore {
         const t = byId.get(id);
         if (!t || seen.has(id)) continue;
         seen.add(id);
-        if (g.sectionId) t.sectionId = g.sectionId;
-        else delete t.sectionId;
+        t.sectionId = g.sectionId;
         next.push(t);
       }
     }
@@ -455,11 +424,13 @@ class HabitStore {
   }
 
   deleteTodoSection(id: string): boolean {
+    if (this.data.todoSections.length <= 1) return false;
     const idx = this.data.todoSections.findIndex((s) => s.id === id);
     if (idx === -1) return false;
     this.data.todoSections.splice(idx, 1);
+    const fallback = this.data.todoSections[0].id;
     for (const t of this.data.todos) {
-      if (t.sectionId === id) delete t.sectionId;
+      if (t.sectionId === id) t.sectionId = fallback;
     }
     save(this.data);
     return true;

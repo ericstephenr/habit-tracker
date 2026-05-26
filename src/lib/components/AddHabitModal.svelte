@@ -46,7 +46,7 @@
       selectedDays = [...habit.schedule.days];
       startDate = habit.startDate;
       notes = habit.notes ?? '';
-      sectionId = habit.sectionId ?? '';
+      sectionId = habit.sectionId;
       habitType = habit.type;
       if (habit.type === 'counter') {
         step = habit.counter.step;
@@ -81,7 +81,7 @@
       selectedDays = [0, 1, 2, 3, 4, 5, 6];
       startDate = selectedDate.value;
       notes = '';
-      sectionId = '';
+      sectionId = store.data.sections[0]?.id ?? '';
       habitType = 'binary';
       target = null;
       step = 1;
@@ -137,7 +137,6 @@
 
   function applySection(h: Habit) {
     if (sectionId) h.sectionId = sectionId;
-    else delete h.sectionId;
   }
 
   function commitEdit(newStartDate: string) {
@@ -427,21 +426,18 @@
       />
     </Field>
 
-    {#if store.data.sections.length > 0}
-      <Field label="Section">
-        <select
-          bind:value={sectionId}
-          onfocus={onFieldFocus}
-          onblur={onFieldBlur}
-          style="{inputStyle} cursor: pointer; appearance: none;"
-        >
-          <option value="">— No section —</option>
-          {#each store.data.sections as s (s.id)}
-            <option value={s.id}>{s.name}</option>
-          {/each}
-        </select>
-      </Field>
-    {/if}
+    <Field label="Section">
+      <select
+        bind:value={sectionId}
+        onfocus={onFieldFocus}
+        onblur={onFieldBlur}
+        style="{inputStyle} cursor: pointer; appearance: none;"
+      >
+        {#each store.data.sections as s (s.id)}
+          <option value={s.id}>{s.name}</option>
+        {/each}
+      </select>
+    </Field>
 
     <Field label="Notes">
       <textarea

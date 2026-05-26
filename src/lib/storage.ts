@@ -12,7 +12,7 @@ import { emptyAppData } from './types';
 
 export const STORAGE_KEY = 'habit-tracker:v1';
 export const BACKUP_KEY = 'habit-tracker:backup';
-export const CURRENT_VERSION = 6 as const;
+export const CURRENT_VERSION = 7 as const;
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -104,7 +104,30 @@ const migrations: Record<number, (data: VersionedData) => VersionedData> = {
   2: (d) => ({ ...d, version: 3, sections: [] }),
   3: (d) => ({ ...d, version: 4, todos: [] }),
   4: (d) => ({ ...d, version: 5 }),
-  5: (d) => ({ ...d, version: 6, todoSections: [] })
+  5: (d) => ({ ...d, version: 6, todoSections: [] }),
+  6: (d) => {
+    const sections = Array.isArray(d.sections) ? d.sections : [];
+    const defaultSection = { id: crypto.randomUUID(), name: 'Habits', collapsed: false };
+    sections.unshift(defaultSection);
+    const habits = Array.isArray(d.habits) ? d.habits : [];
+    for (const h of habits) {
+      if (!(h as Record<string, unknown>).sectionId) {
+        (h as Record<string, unknown>).sectionId = defaultSection.id;
+      }
+    }
+
+    const todoSections = Array.isArray(d.todoSections) ? d.todoSections : [];
+    const defaultTodoSection = { id: crypto.randomUUID(), name: 'Tasks', collapsed: false };
+    todoSections.unshift(defaultTodoSection);
+    const todos = Array.isArray(d.todos) ? d.todos : [];
+    for (const t of todos) {
+      if (!(t as Record<string, unknown>).sectionId) {
+        (t as Record<string, unknown>).sectionId = defaultTodoSection.id;
+      }
+    }
+
+    return { ...d, version: 7, sections, habits, todoSections, todos };
+  }
 };
 
 export function migrate(parsed: unknown): AppData | null {
@@ -119,24 +142,20 @@ export function migrate(parsed: unknown): AppData | null {
   if (data.version !== CURRENT_VERSION) return null;
   const sections = Array.isArray(data.sections) ? data.sections.filter(isSection) : [];
   const validSectionIds = new Set(sections.map((s) => s.id));
+  const fallbackSectionId = sections[0]?.id;
   const habits = (Array.isArray(data.habits) ? data.habits.filter(isHabit) : []).map((h) => {
-    // Drop sectionId references to sections that don't exist — keeps state
-    // internally consistent across imports.
-    if (h.sectionId !== undefined && !validSectionIds.has(h.sectionId)) {
-      const cleaned = { ...h };
-      delete cleaned.sectionId;
-      return cleaned;
+    if (!h.sectionId || !validSectionIds.has(h.sectionId)) {
+      return { ...h, sectionId: fallbackSectionId };
     }
     return h;
   });
   const completions = Array.isArray(data.completions) ? data.completions.filter(isCompletion) : [];
   const todoSections = Array.isArray(data.todoSections) ? data.todoSections.filter(isSection) : [];
   const validTodoSectionIds = new Set(todoSections.map((s) => s.id));
+  const fallbackTodoSectionId = todoSections[0]?.id;
   const todos = (Array.isArray(data.todos) ? data.todos.filter(isTodo) : []).map((t) => {
-    if (t.sectionId !== undefined && !validTodoSectionIds.has(t.sectionId)) {
-      const cleaned = { ...t };
-      delete cleaned.sectionId;
-      return cleaned;
+    if (!t.sectionId || !validTodoSectionIds.has(t.sectionId)) {
+      return { ...t, sectionId: fallbackTodoSectionId };
     }
     return t;
   });
@@ -160,14 +179,30 @@ export function loadInitial(): LoadResult {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return { data: emptyAppData(), recoveredFromCorruption: false };
   try {
-    const migrated = migrate(JSON.parse(raw));
-    if (migrated) return { data: migrated, recoveredFromCorruption: false };
-  } catch {
-    // fall through to backup
+    const parsed = JSON.parse(raw);
+    const migrated = migrate(parsed);
+    if (migrated) {
+      if (parsed.version !== migrated.version) save(migrated);
+      return { data: migrated, recoveredFromCorruption: false };
+    }
+  } catch (e) {
+    console.error('Migration failed:', e);
   }
   backupRaw(raw);
+  // Try recovering from backup before giving up
+  const backupStr = localStorage.getItem(BACKUP_KEY);
+  if (backupStr && backupStr !== raw) {
+    try {
+      const backupMigrated = migrate(JSON.parse(backupStr));
+      if (backupMigrated) {
+        save(backupMigrated);
+        return { data: backupMigrated, recoveredFromCorruption: true };
+      }
+    } catch {
+      // fall through to empty state
+    }
+  }
   const fresh = emptyAppData();
-  // Overwrite the corrupt payload so the recovery banner only fires once.
   save(fresh);
   return { data: fresh, recoveredFromCorruption: true };
 }

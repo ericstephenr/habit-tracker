@@ -22,8 +22,7 @@ type BaseHabit = {
   // Drives time-machine visibility and streak lookback.
   startDate: string;
   notes?: string;
-  // Undefined = ungrouped (rendered at the top with no header).
-  sectionId?: string;
+  sectionId: string;
 };
 
 export type BinaryHabit = BaseHabit & { type: 'binary' };
@@ -46,13 +45,13 @@ export type Todo = {
   id: string;
   name: string;
   done: boolean;
-  sectionId?: string;
+  sectionId: string;
   openDate?: string;
   dueDate?: string;
 };
 
 export type AppData = {
-  version: 6;
+  version: 7;
   habits: Habit[];
   completions: Completion[];
   sections: Section[];
@@ -61,10 +60,10 @@ export type AppData = {
 };
 
 export const emptyAppData = (): AppData => ({
-  version: 6,
+  version: 7,
   habits: [],
   completions: [],
-  sections: [],
+  sections: [{ id: crypto.randomUUID(), name: 'Habits', collapsed: false }],
   todos: [],
-  todoSections: []
+  todoSections: [{ id: crypto.randomUUID(), name: 'Tasks', collapsed: false }]
 });

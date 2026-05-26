@@ -90,7 +90,7 @@
 
     <Button variant="primary" onclick={save}>{section ? 'Save' : 'Create section'}</Button>
 
-    {#if section}
+    {#if section && store.data.sections.length > 1}
       <Button
         variant="ghost"
         onclick={() => (confirmDeleteOpen = true)}
@@ -104,7 +104,7 @@
   bind:open={confirmDeleteOpen}
   title="Delete section?"
   body={section
-    ? `Habits and tasks in "${section.name}" will move to the top of their lists. No completions are lost.`
+    ? `Habits in "${section.name}" will move to the first section. No completions are lost.`
     : ''}
   confirmLabel="Delete"
   danger
