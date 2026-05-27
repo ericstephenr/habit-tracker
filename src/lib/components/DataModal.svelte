@@ -14,8 +14,11 @@
   import Sheet from './Sheet.svelte';
   import SegmentToggle from './SegmentToggle.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
+  import ClearHistoryModal from './ClearHistoryModal.svelte';
 
   let { open = $bindable(false) }: { open?: boolean } = $props();
+
+  let clearHistoryOpen = $state(false);
 
   let errorMessage = $state('');
   let pendingImport = $state<AppData | null>(null);
@@ -171,6 +174,10 @@
         Restore from browser backup
       </button>
     {/if}
+    <button onclick={() => (clearHistoryOpen = true)} style={rowStyle(true)}>
+      <span aria-hidden="true" style={iconStyle(true)}>✂</span>
+      Clear history before date
+    </button>
     <button onclick={() => (confirmResetOpen = true)} style={rowStyle(true)}>
       <span aria-hidden="true" style={iconStyle(true)}>⟲</span>
       Reset all data
@@ -251,6 +258,8 @@
   danger
   onConfirm={doReplace_andClearBackup}
 />
+
+<ClearHistoryModal bind:open={clearHistoryOpen} />
 
 <ConfirmDialog
   bind:open={confirmResetOpen}

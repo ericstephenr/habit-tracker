@@ -218,6 +218,14 @@ class HabitStore {
     save(this.data);
   }
 
+  clearHistoryBefore(dateCutoff: string): void {
+    this.data.completions = this.data.completions.filter((c) => c.date >= dateCutoff);
+    for (const h of this.data.habits) {
+      if (h.startDate < dateCutoff) h.startDate = dateCutoff;
+    }
+    save(this.data);
+  }
+
   deleteHabit(id: string): boolean {
     const idx = this.data.habits.findIndex((h) => h.id === id);
     if (idx === -1) return false;
