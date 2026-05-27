@@ -240,7 +240,7 @@
     transition:
       background var(--t-quick) var(--ease-out),
       color var(--t-quick) var(--ease-out);
-    align-self: center;
+    align-self: flex-end;
   }
 
   .collapse-btn:hover {
