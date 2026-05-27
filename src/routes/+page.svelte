@@ -206,6 +206,22 @@
 
   let pageTitle = $derived(activeTab === 'habits' ? 'Habits' : 'Tasks');
 
+  function scrollToSection(sectionId: string) {
+    const attr = activeTab === 'habits' ? 'data-section-id' : 'data-todo-section-id';
+    const section =
+      activeTab === 'habits'
+        ? store.data.sections.find((s) => s.id === sectionId)
+        : store.data.todoSections.find((s) => s.id === sectionId);
+    if (section?.collapsed) {
+      if (activeTab === 'habits') store.toggleSectionCollapsed(sectionId);
+      else store.toggleTodoSectionCollapsed(sectionId);
+    }
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[${attr}="${sectionId}"]`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
   function openAdd() {
     editingHabit = undefined;
     modalOpen = true;
@@ -297,7 +313,11 @@
 
 <div class="app-shell">
   {#if isDesktop}
-    <Sidebar {activeTab} onTabChange={(tab) => (activeTab = tab)} />
+    <Sidebar
+      {activeTab}
+      onTabChange={(tab) => (activeTab = tab)}
+      onScrollToSection={scrollToSection}
+    />
   {/if}
 
   <div class="app-body">

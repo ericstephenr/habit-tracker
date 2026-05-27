@@ -1,14 +1,17 @@
 <script lang="ts">
+  import { store } from '$lib/store.svelte';
   import IconChevron from './icons/IconChevron.svelte';
 
   type Tab = 'habits' | 'todos';
 
   let {
     activeTab,
-    onTabChange
+    onTabChange,
+    onScrollToSection
   }: {
     activeTab: Tab;
     onTabChange: (tab: Tab) => void;
+    onScrollToSection: (sectionId: string) => void;
   } = $props();
 
   let collapsed = $state(false);
@@ -32,6 +35,24 @@
     { id: 'habits', label: 'Habits' },
     { id: 'todos', label: 'Tasks' }
   ];
+
+  let sidebarSections = $derived.by(() => {
+    if (activeTab === 'habits') {
+      const groupMap = new Map(store.dueGroups.map((g) => [g.section.id, g.habits]));
+      return store.data.sections.map((s) => {
+        const habits = groupMap.get(s.id) ?? [];
+        const progress = store.sectionProgressFor(habits);
+        return { ...s, done: progress.done, total: progress.total };
+      });
+    }
+    return store.data.todoSections.map((s) => ({ ...s, done: 0, total: 0 }));
+  });
+
+  function toggleSectionCollapsed(id: string, e: MouseEvent) {
+    e.stopPropagation();
+    if (activeTab === 'habits') store.toggleSectionCollapsed(id);
+    else store.toggleTodoSectionCollapsed(id);
+  }
 </script>
 
 <nav class="sidebar" class:collapsed aria-label="Main navigation">
@@ -105,7 +126,38 @@
     {/each}
   </div>
 
-  <!-- Spacer for future items -->
+  <!-- Section quick-jumps -->
+  {#if !collapsed && sidebarSections.length > 0}
+    <div class="section-list">
+      <div class="section-list-heading">Sections</div>
+      {#each sidebarSections as section (section.id)}
+        <div class="section-row">
+          <button
+            type="button"
+            class="section-chevron"
+            onclick={(e) => toggleSectionCollapsed(section.id, e)}
+            aria-label={section.collapsed ? `Expand ${section.name}` : `Collapse ${section.name}`}
+          >
+            <IconChevron class="section-chevron-icon" dir={section.collapsed ? 'right' : 'down'} />
+          </button>
+          <button
+            type="button"
+            class="section-name"
+            onclick={() => onScrollToSection(section.id)}
+            title={section.name}
+          >
+            {section.name}
+          </button>
+          {#if activeTab === 'habits' && section.total > 0}
+            <span class="section-badge" class:all-done={section.done === section.total}>
+              {section.done}/{section.total}
+            </span>
+          {/if}
+        </div>
+      {/each}
+    </div>
+  {/if}
+
   <div style="flex: 1;"></div>
 
   <!-- Collapse toggle -->
@@ -224,6 +276,107 @@
 
   .nav-label {
     white-space: nowrap;
+  }
+
+  .section-list {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  .section-list-heading {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding: 0 8px 6px;
+  }
+
+  .section-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-height: 30px;
+  }
+
+  .section-chevron {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--ink-faint);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition:
+      background var(--t-quick) var(--ease-out),
+      color var(--t-quick) var(--ease-out);
+  }
+
+  .section-chevron:hover {
+    background: var(--surface-2);
+    color: var(--ink-muted);
+  }
+
+  :global(.section-chevron-icon) {
+    width: 12px;
+    height: 12px;
+  }
+
+  .section-name {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink-muted);
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.1px;
+    text-align: left;
+    padding: 4px 6px;
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition:
+      background var(--t-quick) var(--ease-out),
+      color var(--t-quick) var(--ease-out);
+  }
+
+  .section-name:hover {
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+
+  .section-badge {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-faint);
+    background: var(--surface-2);
+    padding: 1px 6px;
+    border-radius: var(--r-pill);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .section-badge.all-done {
+    background: var(--accent);
+    color: var(--accent-on);
   }
 
   .collapse-btn {
