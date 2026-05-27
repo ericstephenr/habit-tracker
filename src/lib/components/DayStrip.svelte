@@ -31,7 +31,7 @@
   {#each cells as cell (cell.iso)}
     {@const total = cell.progress.total}
     {@const ratio = total > 0 ? cell.progress.done / total : 0}
-    {@const complete = total > 0 && cell.progress.done === total}
+    {@const circumference = 2 * Math.PI * 18}
     <button
       type="button"
       onclick={() => selectDate(cell.iso)}
@@ -48,52 +48,61 @@
                text-transform: uppercase;
                color: {cell.isSelected ? 'var(--accent-ink)' : 'var(--ink-faint)'};"
       >
-        {#if cell.isToday && !cell.isSelected}
-          <span
-            aria-hidden="true"
-            style="width: 4px; height: 4px; border-radius: 50%; background: var(--accent);"
-          ></span>
-        {/if}
         {cell.letter}
       </span>
       <span
-        style="width: var(--day-circle); height: var(--day-circle); border-radius: 9999px;
-               display: flex; align-items: center; justify-content: center;
-               background: {cell.isSelected
-          ? 'var(--accent)'
-          : cell.isToday
-            ? 'var(--accent-soft)'
-            : 'transparent'};
-               color: {cell.isSelected
-          ? 'var(--accent-on)'
-          : cell.isToday
-            ? 'var(--accent-ink)'
-            : 'var(--ink)'};
-               font-family: var(--font-display); font-weight: 700;
-               font-size: var(--fs-title); font-variant-numeric: tabular-nums;
-               box-shadow: {cell.isSelected ? '0 4px 14px var(--accent-glow)' : 'none'};
-               transition: all var(--t-normal) var(--ease-out);"
+        style="position: relative; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;"
       >
-        {cell.dayNum}
-      </span>
-      <span
-        aria-hidden="true"
-        style="width: 22px; height: 4px; border-radius: 99px;
-               background: {cell.isFuture || total === 0
-          ? 'var(--line)'
-          : complete
+        <svg
+          width="42"
+          height="42"
+          style="position: absolute; inset: 0; transform: rotate(-90deg);"
+          aria-hidden="true"
+        >
+          <circle
+            cx="21"
+            cy="21"
+            r="18"
+            fill="none"
+            stroke="var(--surface-3)"
+            stroke-width="2.25"
+          />
+          {#if ratio > 0 && !cell.isFuture}
+            <circle
+              cx="21"
+              cy="21"
+              r="18"
+              fill="none"
+              stroke="var(--accent)"
+              stroke-width="2.25"
+              stroke-dasharray={circumference}
+              stroke-dashoffset={circumference * (1 - ratio)}
+              stroke-linecap="round"
+              style="transition: stroke-dashoffset var(--t-normal) var(--ease-out);"
+            />
+          {/if}
+        </svg>
+        <span
+          style="width: 28px; height: 28px; border-radius: 9999px;
+                 display: flex; align-items: center; justify-content: center;
+                 background: {cell.isSelected
             ? 'var(--accent)'
-            : 'var(--surface-3)'};
-               overflow: hidden; position: relative;"
-      >
-        {#if ratio > 0 && ratio < 1 && !cell.isFuture}
-          <span
-            style="position: absolute; inset: 0;
-                   width: {ratio * 100}%;
-                   border-radius: 99px;
-                   background: var(--accent);"
-          ></span>
-        {/if}
+            : cell.isToday
+              ? 'var(--accent-soft)'
+              : 'transparent'};
+                 color: {cell.isSelected
+            ? 'var(--accent-on)'
+            : cell.isToday
+              ? 'var(--accent-ink)'
+              : 'var(--ink)'};
+                 font-family: var(--font-display); font-weight: 700;
+                 font-size: var(--fs-body); font-variant-numeric: tabular-nums;
+                 box-shadow: {cell.isSelected ? '0 4px 14px var(--accent-glow)' : 'none'};
+                 transition: all var(--t-normal) var(--ease-out);
+                 position: relative; z-index: 1;"
+        >
+          {cell.dayNum}
+        </span>
       </span>
     </button>
   {/each}

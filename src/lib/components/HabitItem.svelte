@@ -7,7 +7,7 @@
   import { currentDate } from '$lib/currentDate.svelte';
   import StreakCorner from './StreakCorner.svelte';
   import IconCheck from './icons/IconCheck.svelte';
-  import IconGrip from './icons/IconGrip.svelte';
+  import IconKebab from './icons/IconKebab.svelte';
   import IconMinus from './icons/IconMinus.svelte';
   import IconPlus from './icons/IconPlus.svelte';
   import IconChevron from './icons/IconChevron.svelte';
@@ -255,7 +255,7 @@
           (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
         }}
       >
-        <IconGrip class="h-5 w-5" />
+        <IconKebab class="h-5 w-5" />
       </button>
     </div>
 

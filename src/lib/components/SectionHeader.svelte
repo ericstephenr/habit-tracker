@@ -3,7 +3,7 @@
   import { store } from '$lib/store.svelte';
   import IconCheck from './icons/IconCheck.svelte';
   import IconChevron from './icons/IconChevron.svelte';
-  import IconGrip from './icons/IconGrip.svelte';
+  import IconKebab from './icons/IconKebab.svelte';
 
   let {
     section,
@@ -45,18 +45,24 @@
   onkeydown={onRowKey}
   style="display: flex; align-items: center; gap: 8px;
          padding: 8px 4px 10px;
-         border-bottom: 1px solid var(--line);
+         border-bottom: 1px solid {allDone ? 'var(--accent-soft)' : 'var(--line)'};
          margin-bottom: 10px;
          cursor: pointer;
          user-select: none;"
 >
-  <span style="padding: 4px; display: flex; align-items: center; color: var(--ink-muted);">
+  <span
+    style="padding: 4px; display: flex; align-items: center;
+               color: {allDone ? 'var(--accent)' : 'var(--ink-muted)'};"
+  >
     <IconChevron dir={section.collapsed ? 'right' : 'down'} class="h-3 w-3" />
   </span>
   <span
     style="font-family: var(--font-display); font-weight: 700;
            font-size: var(--fs-body); letter-spacing: 1.4px; text-transform: uppercase;
-           color: var(--ink);"
+           color: {allDone ? 'var(--ink-muted)' : 'var(--ink)'};
+           {allDone
+      ? 'text-decoration: line-through; text-decoration-color: var(--accent); text-decoration-thickness: 1.5px;'
+      : ''}"
   >
     {section.name}
   </span>
@@ -68,12 +74,15 @@
              background: {allDone ? 'var(--accent)' : 'var(--surface-2)'};
              padding: {allDone ? '2px 7px 2px 5px' : '2px 8px'};
              border-radius: var(--r-pill); font-variant-numeric: tabular-nums;
-             letter-spacing: 0.2px; line-height: 1.4;"
+             letter-spacing: 0.2px; line-height: 1.4;
+             box-shadow: {allDone ? '0 2px 6px var(--accent-glow)' : 'none'};"
     >
       {#if allDone}
         <IconCheck class="h-2.5 w-2.5" />
+        Done
+      {:else}
+        {doneCount}/{totalCount}
       {/if}
-      {doneCount}/{totalCount}
     </span>
   {/if}
   <div style="flex: 1;"></div>
@@ -81,7 +90,7 @@
     type="button"
     class="section-drag-handle"
     onclick={handleGripClick}
-    aria-label={`Edit ${section.name}, drag to reorder`}
+    aria-label={`Edit ${section.name}`}
     style="width: var(--card-ctrl); height: var(--card-ctrl); border: 0; background: transparent; padding: 0;
            color: var(--ink-faint); cursor: pointer; flex-shrink: 0;
            display: flex; align-items: center; justify-content: center;
@@ -96,6 +105,6 @@
       (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
     }}
   >
-    <IconGrip class="h-5 w-5" />
+    <IconKebab class="h-5 w-5" />
   </button>
 </div>

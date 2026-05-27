@@ -627,49 +627,85 @@
               {/each}
             </div>
 
-            <!-- + New section button -->
-            <button
-              type="button"
-              onclick={openAddTodoSection}
-              style="margin-top: 14px; padding: 8px 12px;
-                   border: 1.5px dashed var(--line); border-radius: var(--r-md);
-                   background: transparent; color: var(--ink-faint);
-                   font-family: var(--font-display); font-size: var(--fs-meta); font-weight: 700;
-                   letter-spacing: 0.6px; text-transform: uppercase;
-                   cursor: pointer; width: 100%;
-                   transition: border-color var(--t-quick), color var(--t-quick);"
-              onmouseenter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)';
-                (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)';
-              }}
-              onmouseleave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--line)';
-                (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
-              }}
-            >
-              + New section
-            </button>
-
-            <!-- Empty state when no undone tasks -->
-            {#if todosOpen === 0 && todosDone === 0}
-              <div
-                class="ht-card"
-                style="margin-top: 14px; padding: 28px 20px; text-align: center;
-                     background: var(--surface); border-radius: 18px;
-                     border: 1px solid var(--line); box-shadow: var(--shadow-1);"
+            <!-- + New section button (hidden when empty state is showing) -->
+            {#if store.data.todos.length > 0 || store.data.todoSections.length > 1}
+              <button
+                type="button"
+                onclick={openAddTodoSection}
+                style="margin-top: 14px; padding: 8px 12px;
+                     border: 1.5px dashed var(--line); border-radius: var(--r-md);
+                     background: transparent; color: var(--ink-faint);
+                     font-family: var(--font-display); font-size: var(--fs-meta); font-weight: 700;
+                     letter-spacing: 0.6px; text-transform: uppercase;
+                     cursor: pointer; width: 100%;
+                     transition: border-color var(--t-quick), color var(--t-quick);"
+                onmouseenter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)';
+                  (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)';
+                }}
+                onmouseleave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--line)';
+                  (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
+                }}
               >
+                + New section
+              </button>
+            {/if}
+
+            <!-- Empty state when no tasks at all -->
+            {#if todosOpen === 0 && todosDone === 0}
+              <div style="padding: 36px 24px 0; text-align: center;">
                 <div
-                  style="font-family: var(--font-display); font-weight: 600;
-                       font-size: 18px; color: var(--ink); margin-bottom: 6px;
-                       letter-spacing: -0.3px;"
+                  style="font-family: var(--font-display); font-weight: 700;
+                       font-size: 30px; line-height: 1.05; letter-spacing: -1.2px;
+                       color: var(--ink); margin-bottom: 8px;"
                 >
-                  {todosDone > 0 ? 'All clear.' : 'No tasks yet.'}
+                  Capture a task.
                 </div>
-                <div
-                  style="font-family: var(--font-body); font-size: 14px;
-                       color: var(--ink-muted); line-height: 1.4;"
+                <p
+                  style="margin: 0 auto 28px; max-width: 280px;
+                       font-family: var(--font-body); font-size: 14px; line-height: 1.45;
+                       color: var(--ink-muted);"
                 >
-                  {todosDone > 0 ? 'Nice work — your list is empty.' : 'Tap + to add one.'}
+                  One-offs that need doing — assignments, errands, calls. Different from habits,
+                  which recur.
+                </p>
+                <div
+                  class="ht-card"
+                  style="margin: 0 auto; max-width: 320px;
+                       background: var(--surface); border-radius: 18px;
+                       padding: 18px; border: 1px solid var(--line);
+                       box-shadow: 0 8px 30px rgba(20, 12, 40, 0.06);
+                       display: flex; flex-direction: column; gap: 12px;"
+                >
+                  <button
+                    type="button"
+                    onclick={openAddTodo}
+                    style="width: 100%; padding: 14px 16px; border-radius: 14px;
+                         background: var(--accent); color: var(--accent-on);
+                         border: 0; cursor: pointer;
+                         font-family: var(--font-display); font-size: 16px; font-weight: 600;
+                         letter-spacing: -0.2px;
+                         box-shadow: 0 8px 22px var(--accent-glow);"
+                  >
+                    + Add your first task
+                  </button>
+                  <div
+                    style="display: flex; flex-direction: column; gap: 6px;
+                         font-family: var(--font-body); font-size: 12px; color: var(--ink-muted);
+                         text-align: left;"
+                  >
+                    <div
+                      style="font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
+                           text-transform: uppercase; color: var(--ink-faint);
+                           margin-bottom: 2px; text-align: center;"
+                    >
+                      Examples
+                    </div>
+                    <div>• Email Sam about Friday</div>
+                    <div>• Pay the rent</div>
+                    <div>• Pick up dry cleaning</div>
+                  </div>
                 </div>
               </div>
             {/if}

@@ -2,7 +2,7 @@
   import type { Section } from '$lib/types';
   import { store } from '$lib/store.svelte';
   import IconChevron from './icons/IconChevron.svelte';
-  import IconGrip from './icons/IconGrip.svelte';
+  import IconKebab from './icons/IconKebab.svelte';
 
   let {
     section,
@@ -58,7 +58,7 @@
     type="button"
     class="todo-section-drag-handle"
     onclick={handleGripClick}
-    aria-label={`Edit ${section.name}, drag to reorder`}
+    aria-label={`Edit ${section.name}`}
     style="width: var(--card-ctrl); height: var(--card-ctrl); border: 0; background: transparent; padding: 0;
            color: var(--ink-faint); cursor: pointer; flex-shrink: 0;
            display: flex; align-items: center; justify-content: center;
@@ -73,6 +73,6 @@
       (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
     }}
   >
-    <IconGrip class="h-5 w-5" />
+    <IconKebab class="h-5 w-5" />
   </button>
 </div>

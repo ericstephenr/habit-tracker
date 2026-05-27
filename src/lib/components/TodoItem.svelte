@@ -4,7 +4,7 @@
   import { currentDate } from '$lib/currentDate.svelte';
   import { formatDueDate, formatMonthDay } from '$lib/schedule';
   import IconCheck from './icons/IconCheck.svelte';
-  import IconGrip from './icons/IconGrip.svelte';
+  import IconKebab from './icons/IconKebab.svelte';
 
   let { todo, onEdit }: { todo: Todo; onEdit: (t: Todo) => void } = $props();
 
@@ -125,6 +125,6 @@
       (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
     }}
   >
-    <IconGrip class="h-5 w-5" />
+    <IconKebab class="h-5 w-5" />
   </button>
 </div>

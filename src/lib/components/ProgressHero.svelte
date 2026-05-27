@@ -17,6 +17,19 @@
     return `${head} · ${isFuture ? 'upcoming' : 'past'}`;
   });
   let complete = $derived(store.totalCount > 0 && store.doneCount === store.totalCount);
+  let pct = $derived(store.progressPct);
+  let toGo = $derived(store.totalCount - store.doneCount);
+  let copy = $derived(
+    pct === 0
+      ? 'A fresh page'
+      : pct < 35
+        ? 'Underway'
+        : pct < 70
+          ? 'Halfway there'
+          : pct < 100
+            ? 'Almost done'
+            : 'Day complete'
+  );
 
   function jumpToday() {
     selectedDate.goToday();
@@ -76,65 +89,67 @@
         style="display: flex; align-items: baseline; justify-content: space-between;
                gap: 12px;"
       >
-        <div style="display: flex; align-items: baseline; gap: 6px; min-width: 0;">
-          <span
-            style="font-family: var(--font-display); font-weight: 700;
-                   font-size: var(--fs-hero); line-height: 1; letter-spacing: -1.5px;
-                   color: {complete ? 'var(--accent-on)' : 'var(--ink)'};
-                   font-variant-numeric: tabular-nums;"
-          >
-            {store.doneCount}
-          </span>
-          <span
-            style="font-family: var(--font-display); font-weight: 600;
-                   font-size: var(--fs-title);
-                   color: {complete ? 'rgba(255,255,255,0.7)' : 'var(--ink-muted)'};
-                   font-variant-numeric: tabular-nums;"
-          >
-            / {store.totalCount}
-          </span>
-        </div>
         <span
           style="font-family: var(--font-display); font-weight: 700;
-                 font-size: var(--fs-display); line-height: 1; letter-spacing: -1.2px;
+                 font-size: 44px; line-height: 0.9; letter-spacing: -2px;
                  color: {complete ? 'var(--accent-on)' : 'var(--ink)'};
-                 font-variant-numeric: tabular-nums; flex-shrink: 0;"
+                 font-variant-numeric: tabular-nums;"
         >
-          {store.progressPct}<span
-            style="font-size: var(--fs-title); font-weight: 600; margin-left: 1px;
+          {pct}<span
+            style="font-size: 20px; font-weight: 600; margin-left: 2px;
                    color: {complete ? 'rgba(255,255,255,0.7)' : 'var(--ink-muted)'};">%</span
           >
         </span>
+        <div style="text-align: right;">
+          <div
+            style="font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
+                   text-transform: uppercase;
+                   color: {complete ? 'rgba(255,255,255,0.5)' : 'var(--ink-faint)'};"
+          >
+            Habits
+          </div>
+          <div
+            style="font-family: var(--font-display); font-size: var(--fs-title); font-weight: 700;
+                   color: {complete ? 'var(--accent-on)' : 'var(--ink)'};
+                   font-variant-numeric: tabular-nums;"
+          >
+            {store.doneCount}<span
+              style="font-weight: 600;
+                     color: {complete ? 'rgba(255,255,255,0.7)' : 'var(--ink-faint)'};"
+            >
+              / {store.totalCount}</span
+            >
+          </div>
+        </div>
       </div>
       <div
-        style="margin-top: 4px; font-size: var(--fs-body); font-weight: 600;
-               color: {complete ? 'rgba(255,255,255,0.9)' : 'var(--ink-muted)'};
-               letter-spacing: 0.1px;"
+        style="margin-top: 8px; font-size: 13px; font-weight: 600;
+               color: {complete ? 'rgba(255,255,255,0.9)' : 'var(--ink-muted)'};"
       >
-        {complete
-          ? '✨ Day complete — nice work'
-          : isFuture
-            ? 'scheduled'
-            : `${store.totalCount - store.doneCount} to go`}
+        {complete ? 'Day complete' : isFuture ? 'scheduled' : `${copy} · ${toGo} to go`}
       </div>
       {#if !isFuture}
         <div
           role="progressbar"
           aria-valuemin="0"
           aria-valuemax="100"
-          aria-valuenow={store.progressPct}
+          aria-valuenow={pct}
           aria-label="{store.doneCount} of {store.totalCount} habits complete"
-          style="margin-top: 12px; height: 8px; border-radius: 99px;
+          style="margin-top: 14px; height: 14px; border-radius: 99px;
                  background: {complete ? 'rgba(255,255,255,0.25)' : 'var(--surface-3)'};
                  overflow: hidden; position: relative;"
         >
           <div
             style="position: absolute; inset: 0;
-                   width: {store.progressPct}%;
-                   background: {complete ? 'rgba(255,255,255,0.95)' : 'var(--accent)'};
+                   width: {pct}%;
+                   background: {complete
+              ? 'rgba(255,255,255,0.95)'
+              : 'linear-gradient(180deg, color-mix(in oklch, var(--accent) 90%, white) 0%, var(--accent) 60%, var(--accent-deep) 100%)'};
                    border-radius: 99px;
                    transition: width 420ms cubic-bezier(.2,.8,.2,1);
-                   box-shadow: {complete ? 'none' : '0 2px 8px var(--accent-glow)'};"
+                   box-shadow: {complete
+              ? 'none'
+              : '0 2px 10px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,.35)'};"
           ></div>
         </div>
       {/if}
