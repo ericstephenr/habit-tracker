@@ -111,6 +111,17 @@ export function smartDateTitle(dateISO: string, todayISO: string): string {
   return `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`;
 }
 
+export function buildDateWindow(center: string, radius: number): string[] {
+  const dates: string[] = [];
+  let cursor = center;
+  for (let i = 0; i < radius; i++) cursor = previousDay(cursor);
+  for (let i = -radius; i <= radius; i++) {
+    dates.push(cursor);
+    if (i < radius) cursor = nextDay(cursor);
+  }
+  return dates;
+}
+
 export const DAY_LETTERS: ReadonlyArray<string> = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 export const DAY_NAMES: ReadonlyArray<string> = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 

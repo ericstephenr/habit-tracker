@@ -1,12 +1,22 @@
-import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+import { SvelteSet } from 'svelte/reactivity';
 import type { AppData, CounterConfig, DayOfWeek, Habit, Section, Todo } from './types';
 import { emptyAppData } from './types';
 import { newId } from './ids';
-import { effectiveTarget, isDueOn, normalizeDays } from './schedule';
+import { normalizeDays } from './schedule';
 import { selectedDate } from './selectedDate.svelte';
 import { STORAGE_KEY, loadInitial, migrate, save } from './storage';
-
-export type TodoGroup = { section: Section; todos: Todo[] };
+import {
+  computeDonesByHabit,
+  computeDueHabits,
+  groupHabitsBySection,
+  computeAllStartedHabits,
+  computeTodoGroups,
+  computeDoneCount,
+  computeProgressPct,
+  sectionProgress,
+  progressForDate
+} from './storeOps';
+export type { TodoGroup } from './storeOps';
 
 export type NewHabitInput =
   | { type: 'binary'; name: string; days: DayOfWeek[]; startDate: string; notes?: string }
@@ -27,88 +37,33 @@ class HabitStore {
   data: AppData = $state(emptyAppData());
   recoveryNotice = $state(false);
 
-  donesByHabit = $derived.by(() => {
-    const byId = new SvelteMap<string, Habit>();
-    for (const h of this.data.habits) byId.set(h.id, h);
-    const map = new SvelteMap<string, SvelteSet<string>>();
-    for (const c of this.data.completions) {
-      const habit = byId.get(c.habitId);
-      if (!habit) continue;
-      if (habit.type === 'counter') {
-        const count = c.count ?? 0;
-        if (count < effectiveTarget(habit, c.date)) continue;
-      }
-      let set = map.get(c.habitId);
-      if (!set) {
-        set = new SvelteSet();
-        map.set(c.habitId, set);
-      }
-      set.add(c.date);
-    }
-    return map;
-  });
+  donesByHabit = $derived.by(() => computeDonesByHabit(this.data.habits, this.data.completions));
 
-  dueHabits = $derived.by(() => {
-    const date = selectedDate.value;
-    return this.data.habits.filter((h) => isDueOn(h, date) && h.startDate <= date);
-  });
+  dueHabits = $derived.by(() => computeDueHabits(this.data.habits, selectedDate.value));
 
-  dueGroups = $derived.by(() => {
-    const fallback = this.data.sections[0]?.id;
-    const validSectionIds = new SvelteSet(this.data.sections.map((s) => s.id));
-    const bySection = new SvelteMap<string, Habit[]>();
-    for (const s of this.data.sections) bySection.set(s.id, []);
-    for (const h of this.dueHabits) {
-      const key = validSectionIds.has(h.sectionId) ? h.sectionId : fallback;
-      if (key) bySection.get(key)?.push(h);
-    }
-    return this.data.sections.map((s) => ({ section: s, habits: bySection.get(s.id) ?? [] }));
-  });
+  dueGroups = $derived.by(() => groupHabitsBySection(this.data.sections, this.dueHabits));
 
-  allStartedHabits = $derived.by(() => {
-    const date = selectedDate.value;
-    return this.data.habits.filter((h) => h.startDate <= date);
-  });
+  allStartedHabits = $derived.by(() =>
+    computeAllStartedHabits(this.data.habits, selectedDate.value)
+  );
 
-  dueHabitIds = $derived(new SvelteSet(this.dueHabits.map((h) => h.id)));
+  dueHabitIds = $derived(new Set(this.dueHabits.map((h) => h.id)));
 
-  allStartedGroups = $derived.by(() => {
-    const fallback = this.data.sections[0]?.id;
-    const validSectionIds = new SvelteSet(this.data.sections.map((s) => s.id));
-    const bySection = new SvelteMap<string, Habit[]>();
-    for (const s of this.data.sections) bySection.set(s.id, []);
-    for (const h of this.allStartedHabits) {
-      const key = validSectionIds.has(h.sectionId) ? h.sectionId : fallback;
-      if (key) bySection.get(key)?.push(h);
-    }
-    return this.data.sections.map((s) => ({ section: s, habits: bySection.get(s.id) ?? [] }));
-  });
+  allStartedGroups = $derived.by(() =>
+    groupHabitsBySection(this.data.sections, this.allStartedHabits)
+  );
 
   extraHabitCount = $derived(this.allStartedHabits.length - this.dueHabits.length);
 
-  todoGroups = $derived.by((): TodoGroup[] => {
-    const fallback = this.data.todoSections[0]?.id;
-    const validIds = new SvelteSet(this.data.todoSections.map((s) => s.id));
-    const bySection = new SvelteMap<string, Todo[]>();
-    for (const s of this.data.todoSections) bySection.set(s.id, []);
-    for (const t of this.data.todos) {
-      if (t.done) continue;
-      const key = validIds.has(t.sectionId) ? t.sectionId : fallback;
-      if (key) bySection.get(key)?.push(t);
-    }
-    return this.data.todoSections.map((s) => ({ section: s, todos: bySection.get(s.id) ?? [] }));
-  });
+  todoGroups = $derived.by(() => computeTodoGroups(this.data.todoSections, this.data.todos));
 
-  doneCount = $derived.by(() => {
-    const date = selectedDate.value;
-    return this.dueHabits.filter((h) => this.isDone(h.id, date)).length;
-  });
+  doneCount = $derived.by(() =>
+    computeDoneCount(this.dueHabits, this.donesByHabit, selectedDate.value)
+  );
 
   totalCount = $derived(this.dueHabits.length);
 
-  progressPct = $derived(
-    this.totalCount > 0 ? Math.floor((this.doneCount / this.totalCount) * 100) : 0
-  );
+  progressPct = $derived(computeProgressPct(this.doneCount, this.totalCount));
 
   hasAnyHabit = $derived(this.data.habits.length > 0);
 
@@ -304,18 +259,12 @@ class HabitStore {
     return this.donesByHabit.get(habitId)?.has(date) === true;
   }
 
-  // Per-date progress for the day strip. Mirrors `dueHabits`/`doneCount` but
-  // accepts an arbitrary ISO date instead of reading `selectedDate`.
   progressForDate(date: string): { done: number; total: number } {
-    let total = 0;
-    let done = 0;
-    for (const h of this.data.habits) {
-      if (!isDueOn(h, date)) continue;
-      if (h.startDate > date) continue;
-      total++;
-      if (this.donesByHabit.get(h.id)?.has(date)) done++;
-    }
-    return { done, total };
+    return progressForDate(this.data.habits, this.donesByHabit, date);
+  }
+
+  sectionProgressFor(habits: Habit[]): { done: number; total: number } {
+    return sectionProgress(habits, this.dueHabitIds, this.donesByHabit, selectedDate.value);
   }
 
   addTodo(input: { name: string; sectionId?: string; openDate?: string; dueDate?: string }): Todo {

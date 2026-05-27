@@ -17,9 +17,6 @@
     return `${head} · ${isFuture ? 'upcoming' : 'past'}`;
   });
   let complete = $derived(store.totalCount > 0 && store.doneCount === store.totalCount);
-  let pct = $derived(
-    store.totalCount > 0 ? Math.round((store.doneCount / store.totalCount) * 100) : 0
-  );
 
   function jumpToday() {
     selectedDate.goToday();
@@ -103,7 +100,7 @@
                  color: {complete ? 'var(--accent-on)' : 'var(--ink)'};
                  font-variant-numeric: tabular-nums; flex-shrink: 0;"
         >
-          {pct}<span
+          {store.progressPct}<span
             style="font-size: var(--fs-title); font-weight: 600; margin-left: 1px;
                    color: {complete ? 'rgba(255,255,255,0.7)' : 'var(--ink-muted)'};">%</span
           >

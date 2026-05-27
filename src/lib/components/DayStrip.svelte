@@ -2,20 +2,10 @@
   import { selectedDate } from '$lib/selectedDate.svelte';
   import { currentDate } from '$lib/currentDate.svelte';
   import { store } from '$lib/store.svelte';
-  import { parseISO, previousDay, nextDay, DAY_LETTERS } from '$lib/schedule';
+  import { parseISO, buildDateWindow, DAY_LETTERS } from '$lib/schedule';
 
   let cells = $derived.by(() => {
-    // Build 7 ISO date strings centered on the selected date by walking
-    // backwards 3 days, then forward through the window. Uses the existing
-    // previousDay/nextDay string helpers so we don't mutate Date instances.
-    const isoList: string[] = [];
-    let cursor = selectedDate.value;
-    for (let i = 0; i < 3; i++) cursor = previousDay(cursor);
-    for (let i = -3; i <= 3; i++) {
-      isoList.push(cursor);
-      if (i < 3) cursor = nextDay(cursor);
-    }
-    return isoList.map((iso) => {
+    return buildDateWindow(selectedDate.value, 3).map((iso) => {
       const d = parseISO(iso);
       return {
         iso,

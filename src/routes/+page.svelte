@@ -264,17 +264,6 @@
     return showAll && !store.dueHabitIds.has(habit.id);
   }
 
-  function habitGroupCounts(habits: Habit[]) {
-    let done = 0;
-    let total = 0;
-    for (const h of habits) {
-      if (!store.dueHabitIds.has(h.id)) continue;
-      total++;
-      if (store.isDone(h.id, selectedDate.value)) done++;
-    }
-    return { done, total };
-  }
-
   let todosOpen = $derived(store.data.todos.filter((t) => !t.done).length);
   let todosDone = $derived(store.data.todos.filter((t) => t.done).length);
   let allDoneTodos = $derived(store.data.todos.filter((t) => t.done));
@@ -481,7 +470,7 @@
 
             <div bind:this={sectionsContainerRef}>
               {#each activeGroups as group (group.section.id)}
-                {@const counts = habitGroupCounts(group.habits)}
+                {@const counts = store.sectionProgressFor(group.habits)}
                 <section data-section-id={group.section.id} style="margin-top: 14px;">
                   <SectionHeader
                     section={group.section}

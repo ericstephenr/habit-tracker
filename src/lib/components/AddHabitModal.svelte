@@ -1,8 +1,9 @@
 <script lang="ts">
-  import type { CounterConfig, DayOfWeek, Habit } from '$lib/types';
+  import type { DayOfWeek, Habit } from '$lib/types';
   import { store, type HabitPatch } from '$lib/store.svelte';
   import { DAY_LETTERS, DAY_NAMES, normalizeDays } from '$lib/schedule';
   import { selectedDate } from '$lib/selectedDate.svelte';
+  import { buildCounterConfig, validateHabitInput } from '$lib/validation';
   import Sheet from './Sheet.svelte';
   import Button from './Button.svelte';
   import Field from './Field.svelte';
@@ -114,21 +115,8 @@
     }
   }
 
-  function buildCounter(): CounterConfig | null {
-    if (step == null || step <= 0) return null;
-    if (perDayOn) {
-      const perDayTargets: Partial<Record<DayOfWeek, number>> = {};
-      for (const d of selectedDays) {
-        const v = perDayValues[d];
-        if (v == null || v <= 0) return null;
-        perDayTargets[d] = v;
-      }
-      const fallback =
-        target != null && target > 0 ? target : (perDayTargets[selectedDays[0]] ?? 1);
-      return { target: fallback, step, unit, perDayTargets };
-    }
-    if (target == null || target <= 0) return null;
-    return { target, step, unit };
+  function buildCounter() {
+    return buildCounterConfig({ step, target, unit, perDayOn, perDayValues, selectedDays });
   }
 
   function close() {
@@ -214,42 +202,20 @@
     close();
   }
 
-  let canSave = $derived.by(() => {
-    if (name.trim().length === 0) return false;
-    if (selectedDays.length === 0) return false;
-    if (startDate.length === 0) return false;
-    if (habitType === 'counter') {
-      if (step == null || step <= 0) return false;
-      if (perDayOn) {
-        for (const d of selectedDays) {
-          const v = perDayValues[d];
-          if (v == null || v <= 0) return false;
-        }
-      } else if (target == null || target <= 0) {
-        return false;
-      }
-    }
-    return true;
-  });
-
-  let errorMessage = $derived.by(() => {
-    if (!interacted || canSave) return '';
-    if (name.trim().length === 0) return 'Add a habit name.';
-    if (startDate.length === 0) return 'Pick a start date.';
-    if (selectedDays.length === 0) return 'Pick at least one day.';
-    if (habitType === 'counter') {
-      if (step == null || step <= 0) return 'Set a step size greater than 0.';
-      if (perDayOn) {
-        for (const d of selectedDays) {
-          const v = perDayValues[d];
-          if (v == null || v <= 0) return `Set a target for ${DAY_NAMES[d]}.`;
-        }
-      } else if (target == null || target <= 0) {
-        return 'Set a target greater than 0.';
-      }
-    }
-    return '';
-  });
+  let validation = $derived(
+    validateHabitInput({
+      name,
+      days: selectedDays,
+      startDate,
+      type: habitType,
+      step,
+      target,
+      perDayOn,
+      perDayValues
+    })
+  );
+  let canSave = $derived(validation.valid);
+  let errorMessage = $derived(!interacted || canSave ? '' : validation.error);
 
   const inputStyle =
     'width: 100%; box-sizing: border-box; padding: 14px 16px; border-radius: 14px; ' +
