@@ -1,7 +1,15 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'fs';
 import { dirname, join } from 'path';
-import type { AppData, Completion, CounterConfig, Habit, Section, Todo } from '../types';
+import type {
+  AppData,
+  Completion,
+  CompletionState,
+  CounterConfig,
+  Habit,
+  Section,
+  Todo
+} from '../types';
 import { emptyAppData } from '../types';
 
 const DB_PATH =
@@ -21,6 +29,10 @@ function getDb(): Database.Database {
   _db.pragma('journal_mode = WAL');
   _db.pragma('foreign_keys = ON');
   _db.exec(SCHEMA);
+  const cols = _db.prepare('PRAGMA table_info(completions)').all() as { name: string }[];
+  if (!cols.some((c) => c.name === 'state')) {
+    _db.exec('ALTER TABLE completions ADD COLUMN state TEXT');
+  }
   return _db;
 }
 
@@ -48,6 +60,7 @@ CREATE TABLE IF NOT EXISTS completions (
   habit_id  TEXT NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
   date      TEXT NOT NULL,
   count     INTEGER,
+  state     TEXT,
   PRIMARY KEY (habit_id, date)
 );
 
@@ -96,6 +109,7 @@ interface CompletionRow {
   habit_id: string;
   date: string;
   count: number | null;
+  state: string | null;
 }
 
 interface TodoRow {
@@ -134,6 +148,7 @@ function toHabit(row: HabitRow): Habit {
 function toCompletion(row: CompletionRow): Completion {
   const c: Completion = { habitId: row.habit_id, date: row.date };
   if (row.count != null) c.count = row.count;
+  if (row.state === 'skipped') c.state = 'skipped';
   return c;
 }
 
@@ -219,10 +234,10 @@ export function importData(data: AppData): void {
     }
 
     const insertCompletion = db.prepare(
-      'INSERT INTO completions (habit_id, date, count) VALUES (?, ?, ?)'
+      'INSERT INTO completions (habit_id, date, count, state) VALUES (?, ?, ?, ?)'
     );
     for (const c of data.completions) {
-      insertCompletion.run(c.habitId, c.date, c.count ?? null);
+      insertCompletion.run(c.habitId, c.date, c.count ?? null, c.state ?? null);
     }
 
     const insertTodoSection = db.prepare(
@@ -422,12 +437,41 @@ export function toggleCompletion(habitId: string, date: string): boolean {
 export function setCount(habitId: string, date: string, count: number): void {
   const db = getDb();
   if (count <= 0) {
-    db.prepare('DELETE FROM completions WHERE habit_id = ? AND date = ?').run(habitId, date);
+    // Preserve a 'skipped' row even when count zeroes out.
+    db.transaction(() => {
+      db.prepare('UPDATE completions SET count = NULL WHERE habit_id = ? AND date = ?').run(
+        habitId,
+        date
+      );
+      db.prepare(
+        'DELETE FROM completions WHERE habit_id = ? AND date = ? AND count IS NULL AND state IS NULL'
+      ).run(habitId, date);
+    })();
   } else {
     db.prepare(
       'INSERT INTO completions (habit_id, date, count) VALUES (?, ?, ?) ON CONFLICT(habit_id, date) DO UPDATE SET count = ?'
     ).run(habitId, date, count, count);
   }
+}
+
+export function setState(habitId: string, date: string, state: CompletionState | null): void {
+  const db = getDb();
+  if (state === 'skipped') {
+    db.prepare(
+      `INSERT INTO completions (habit_id, date, state) VALUES (?, ?, 'skipped')
+       ON CONFLICT(habit_id, date) DO UPDATE SET state = 'skipped'`
+    ).run(habitId, date);
+  } else {
+    db.prepare('UPDATE completions SET state = NULL WHERE habit_id = ? AND date = ?').run(
+      habitId,
+      date
+    );
+  }
+}
+
+export function deleteCompletion(habitId: string, date: string): void {
+  const db = getDb();
+  db.prepare('DELETE FROM completions WHERE habit_id = ? AND date = ?').run(habitId, date);
 }
 
 // ---------------------------------------------------------------------------

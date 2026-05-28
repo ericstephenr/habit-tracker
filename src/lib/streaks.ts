@@ -6,14 +6,16 @@ const MAX_LOOKBACK_DAYS = 365;
 export function calcStreak(
   habit: Habit,
   dones: Set<string> | undefined,
+  skipped: Set<string> | undefined,
   referenceDate: string,
   realToday: string
 ): number {
-  const set = dones ?? new Set<string>();
+  const doneSet = dones ?? new Set<string>();
+  const skippedSet = skipped ?? new Set<string>();
 
   let date = referenceDate;
   const inProgress = referenceDate === realToday;
-  if (inProgress && isDueOn(habit, date) && !set.has(date)) {
+  if (inProgress && isDueOn(habit, date) && !doneSet.has(date) && !skippedSet.has(date)) {
     date = previousDay(date);
   }
 
@@ -21,7 +23,9 @@ export function calcStreak(
   for (let i = 0; i < MAX_LOOKBACK_DAYS; i++) {
     if (date < habit.startDate) break;
     if (isDueOn(habit, date)) {
-      if (set.has(date)) {
+      if (skippedSet.has(date)) {
+        // skipped is transparent: neither extends nor breaks the streak
+      } else if (doneSet.has(date)) {
         streak++;
       } else {
         break;

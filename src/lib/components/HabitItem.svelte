@@ -6,11 +6,13 @@
   import { effectiveTarget } from '$lib/schedule';
   import { currentDate } from '$lib/currentDate.svelte';
   import StreakCorner from './StreakCorner.svelte';
+  import HabitStateMenu from './HabitStateMenu.svelte';
   import IconCheck from './icons/IconCheck.svelte';
   import IconKebab from './icons/IconKebab.svelte';
   import IconMinus from './icons/IconMinus.svelte';
   import IconPlus from './icons/IconPlus.svelte';
   import IconChevron from './icons/IconChevron.svelte';
+  import IconSkip from './icons/IconSkip.svelte';
 
   let {
     habit,
@@ -21,9 +23,15 @@
 
   let expanded = $state(false);
   let pressed = $state(false);
+  let menuOpen = $state(false);
+  let menuAnchor = $state<{ x: number; y: number } | null>(null);
+  let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+  let longPressFired = false;
+  let checkboxEl = $state<HTMLButtonElement | null>(null);
 
   let isFuture = $derived(date > currentDate.value);
   let done = $derived(store.isDone(habit.id, date));
+  let skipped = $derived(store.isSkipped(habit.id, date));
   let target = $derived(habit.type === 'counter' ? effectiveTarget(habit, date) : 0);
   let count = $derived(habit.type === 'counter' ? store.getCount(habit.id, date) : 0);
   let unitSuffix = $derived(
@@ -31,14 +39,28 @@
   );
   let streakRef = $derived(isFuture ? currentDate.value : date);
   let streak = $derived(
-    calcStreak(habit, store.donesByHabit.get(habit.id), streakRef, currentDate.value)
+    calcStreak(
+      habit,
+      store.donesByHabit.get(habit.id),
+      store.skippedByHabit.get(habit.id),
+      streakRef,
+      currentDate.value
+    )
   );
   let fillPct = $derived(
     habit.type === 'counter' && target > 0 ? Math.min(1, count / target) * 100 : 0
   );
+  let currentState = $derived<'incomplete' | 'complete' | 'skipped'>(
+    skipped ? 'skipped' : done ? 'complete' : 'incomplete'
+  );
 
   function handleCheck() {
     if (isFuture) return;
+    if (skipped) {
+      // A click on a skipped checkbox promotes it to complete.
+      store.setCompletionState(habit.id, date, 'complete');
+      return;
+    }
     if (habit.type === 'binary') {
       store.toggleCompletion(habit.id, date);
     } else {
@@ -55,6 +77,66 @@
   function dec() {
     if (isFuture || habit.type !== 'counter') return;
     store.setCount(habit.id, date, Math.max(0, count - habit.counter.step));
+  }
+
+  function openMenuAt(x: number, y: number) {
+    if (isFuture) return;
+    menuAnchor = { x, y };
+    menuOpen = true;
+  }
+
+  function openMenuBelowCheckbox() {
+    if (!checkboxEl || isFuture) return;
+    const rect = checkboxEl.getBoundingClientRect();
+    openMenuAt(rect.left + rect.width / 2, rect.bottom + 6);
+  }
+
+  function onCheckboxContextMenu(e: MouseEvent) {
+    if (isFuture) return;
+    e.preventDefault();
+    if (menuOpen) return;
+    openMenuAt(e.clientX, e.clientY);
+  }
+
+  function onCheckboxPointerDown(e: PointerEvent) {
+    if (isFuture) return;
+    if (e.button !== 0) return;
+    pressed = true;
+    longPressFired = false;
+    if (longPressTimer) clearTimeout(longPressTimer);
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null;
+      if (menuOpen) return;
+      longPressFired = true;
+      pressed = false;
+      openMenuBelowCheckbox();
+    }, 500);
+  }
+
+  function cancelLongPress() {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+    }
+    pressed = false;
+  }
+
+  function onCheckboxClick(e: MouseEvent) {
+    if (longPressFired) {
+      longPressFired = false;
+      e.preventDefault();
+      return;
+    }
+    handleCheck();
+  }
+
+  function onCaretClick(e: MouseEvent) {
+    e.stopPropagation();
+    openMenuBelowCheckbox();
+  }
+
+  function onStateSelect(next: 'incomplete' | 'complete' | 'skipped') {
+    store.setCompletionState(habit.id, date, next);
   }
 
   $effect(() => {
@@ -85,54 +167,91 @@
       style="display: flex; align-items: center; gap: var(--card-gap); padding: var(--card-pad);"
     >
       <!-- Checkbox: binary = rounded square; counter = circle with water-fill -->
-      <button
-        type="button"
-        onclick={handleCheck}
-        onpointerdown={() => !isFuture && (pressed = true)}
-        onpointerup={() => (pressed = false)}
-        onpointerleave={() => (pressed = false)}
-        disabled={isFuture}
-        aria-pressed={done}
-        aria-label={isFuture
-          ? `Cannot mark ${habit.name} in the future`
-          : done
-            ? `Mark ${habit.name} not done`
-            : `Mark ${habit.name} done`}
-        style="width: var(--card-ctrl); height: var(--card-ctrl);
-               border-radius: {habit.type === 'counter' ? '9999px' : 'var(--r-sm)'};
-               flex-shrink: 0; border: 0; padding: 0;
-               background: {done ? 'var(--accent)' : 'var(--surface-2)'};
-               color: {done ? 'var(--accent-on)' : 'transparent'};
-               display: flex; align-items: center; justify-content: center;
-               cursor: {isFuture ? 'not-allowed' : 'pointer'};
-               opacity: {isFuture ? 0.35 : 1};
-               position: relative; overflow: hidden;
-               transition: background var(--t-normal) var(--ease-out),
-                           transform var(--t-quick) var(--ease-spring),
-                           box-shadow var(--t-normal) var(--ease-spring);
-               transform: scale({pressed ? 0.86 : 1});
-               box-shadow: {done
-          ? '0 4px 12px var(--accent-glow)'
-          : 'inset 0 0 0 1.5px var(--line-strong)'};"
-      >
-        {#if habit.type === 'counter' && !done && count > 0}
-          <span
-            aria-hidden="true"
-            style="position: absolute; left: 0; right: 0; bottom: 0;
-                   height: max(6px, {fillPct}%);
-                   background: var(--accent);
-                   transition: height var(--t-emphasized) var(--ease-out);
-                   pointer-events: none;"
-          ></span>
-        {/if}
-        <span
-          style="position: relative; display: flex; align-items: center; justify-content: center;
-                 transform: scale({done ? 1 : 0});
-                 transition: transform 280ms cubic-bezier(.2,1.6,.4,1) 60ms;"
+      <div class="checkbox-with-caret" style="position: relative; flex-shrink: 0;">
+        <button
+          type="button"
+          bind:this={checkboxEl}
+          onclick={onCheckboxClick}
+          oncontextmenu={onCheckboxContextMenu}
+          onpointerdown={onCheckboxPointerDown}
+          onpointerup={cancelLongPress}
+          onpointerleave={cancelLongPress}
+          onpointercancel={cancelLongPress}
+          disabled={isFuture}
+          aria-pressed={done}
+          aria-label={isFuture
+            ? `Cannot mark ${habit.name} in the future`
+            : skipped
+              ? `${habit.name} is skipped — click to mark done, right-click for options`
+              : done
+                ? `Mark ${habit.name} not done`
+                : `Mark ${habit.name} done`}
+          style="width: var(--card-ctrl); height: var(--card-ctrl);
+                 border-radius: {habit.type === 'counter' ? '9999px' : 'var(--r-sm)'};
+                 flex-shrink: 0; border: 0; padding: 0;
+                 background: {skipped
+            ? 'var(--ink-faint)'
+            : done
+              ? 'var(--accent)'
+              : 'var(--surface-2)'};
+                 color: {skipped || done ? 'var(--accent-on)' : 'transparent'};
+                 display: flex; align-items: center; justify-content: center;
+                 cursor: {isFuture ? 'not-allowed' : 'pointer'};
+                 opacity: {isFuture ? 0.35 : 1};
+                 position: relative; overflow: hidden;
+                 touch-action: manipulation;
+                 transition: background var(--t-normal) var(--ease-out),
+                             transform var(--t-quick) var(--ease-spring),
+                             box-shadow var(--t-normal) var(--ease-spring);
+                 transform: scale({pressed ? 0.86 : 1});
+                 box-shadow: {done
+            ? '0 4px 12px var(--accent-glow)'
+            : skipped
+              ? 'none'
+              : 'inset 0 0 0 1.5px var(--line-strong)'};"
         >
-          <IconCheck class="h-4 w-4" />
-        </span>
-      </button>
+          {#if habit.type === 'counter' && !done && count > 0}
+            <span
+              aria-hidden="true"
+              style="position: absolute; left: 0; right: 0; bottom: 0;
+                     height: max(6px, {fillPct}%);
+                     background: var(--accent);
+                     opacity: {skipped ? 0.35 : 1};
+                     transition: height var(--t-emphasized) var(--ease-out),
+                                 opacity var(--t-normal) var(--ease-out);
+                     pointer-events: none;"
+            ></span>
+          {/if}
+          {#if skipped}
+            <span
+              style="position: relative; display: flex; align-items: center; justify-content: center;
+                     transform: scale(1);
+                     transition: transform 280ms cubic-bezier(.2,1.6,.4,1) 60ms;"
+            >
+              <IconSkip class="h-4 w-4" />
+            </span>
+          {:else}
+            <span
+              style="position: relative; display: flex; align-items: center; justify-content: center;
+                     transform: scale({done ? 1 : 0});
+                     transition: transform 280ms cubic-bezier(.2,1.6,.4,1) 60ms;"
+            >
+              <IconCheck class="h-4 w-4" />
+            </span>
+          {/if}
+        </button>
+        {#if !isFuture}
+          <button
+            type="button"
+            class="state-caret"
+            onclick={onCaretClick}
+            aria-label={`Open state menu for ${habit.name}`}
+            tabindex="-1"
+          >
+            <IconChevron dir="down" class="h-2.5 w-2.5" />
+          </button>
+        {/if}
+      </div>
 
       <!-- Name (clickable when notes exist) -->
       {#if habit.notes}
@@ -149,7 +268,7 @@
           <span
             title={habit.name}
             style="font-family: var(--font-body); font-size: var(--fs-input); font-weight: 500;
-                   color: var(--ink); opacity: {inactive ? 0.5 : done ? 0.55 : 1};
+                   color: var(--ink); opacity: {inactive ? 0.5 : skipped ? 0.55 : done ? 0.55 : 1};
                    transition: all 200ms;
                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
           >
@@ -168,7 +287,7 @@
           title={habit.name}
           style="flex: 1; min-width: 0;
                  font-family: var(--font-body); font-size: var(--fs-input); font-weight: 500;
-                 color: var(--ink); opacity: {inactive ? 0.5 : done ? 0.55 : 1};
+                 color: var(--ink); opacity: {inactive ? 0.5 : skipped ? 0.55 : done ? 0.55 : 1};
                  transition: all 200ms;
                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
         >
@@ -271,4 +390,53 @@
       </div>
     {/if}
   </div>
+
+  <HabitStateMenu
+    bind:open={menuOpen}
+    anchor={menuAnchor}
+    {currentState}
+    onSelect={onStateSelect}
+  />
 </div>
+
+<style>
+  .state-caret {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 16px;
+    height: 16px;
+    border: 0;
+    padding: 0;
+    background: var(--surface);
+    color: var(--ink-muted);
+    border-radius: 50%;
+    box-shadow: 0 0 0 1.5px var(--line-strong);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(0.8);
+    transition:
+      opacity 140ms var(--ease-out),
+      transform 140ms var(--ease-out),
+      background 140ms var(--ease-out);
+    pointer-events: none;
+  }
+  .checkbox-with-caret:hover .state-caret,
+  .state-caret:focus-visible {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+  }
+  .state-caret:hover {
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+  @media (hover: none) {
+    .state-caret {
+      display: none;
+    }
+  }
+</style>

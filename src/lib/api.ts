@@ -1,4 +1,4 @@
-import type { AppData, Habit, Section, Todo, CounterConfig } from './types';
+import type { AppData, CompletionState, Habit, Section, Todo, CounterConfig } from './types';
 
 async function call(url: string, method: string, body?: unknown): Promise<Response> {
   const res = await fetch(url, {
@@ -69,6 +69,18 @@ export async function apiToggleCompletion(habitId: string, date: string): Promis
 
 export async function apiSetCount(habitId: string, date: string, count: number): Promise<void> {
   await call('/api/completions', 'POST', { habitId, date, count });
+}
+
+export async function apiSetState(
+  habitId: string,
+  date: string,
+  state: CompletionState | null
+): Promise<void> {
+  await call('/api/completions', 'POST', { habitId, date, state });
+}
+
+export async function apiDeleteCompletion(habitId: string, date: string): Promise<void> {
+  await call('/api/completions', 'POST', { habitId, date, delete: true });
 }
 
 // Sections

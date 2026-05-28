@@ -1,17 +1,17 @@
 import { SvelteSet } from 'svelte/reactivity';
-import type { AppData, CounterConfig, DayOfWeek, Habit, Section, Todo } from './types';
+import type { AppData, Completion, CounterConfig, DayOfWeek, Habit, Section, Todo } from './types';
 import { emptyAppData } from './types';
 import { newId } from './ids';
-import { normalizeDays } from './schedule';
+import { effectiveTarget, normalizeDays } from './schedule';
 import { selectedDate } from './selectedDate.svelte';
 import { STORAGE_KEY, migrate } from './storage';
 import {
   computeDonesByHabit,
+  computeSkippedByHabit,
   computeDueHabits,
   groupHabitsBySection,
   computeAllStartedHabits,
   computeTodoGroups,
-  computeDoneCount,
   computeProgressPct,
   sectionProgress,
   progressForDate
@@ -24,6 +24,8 @@ import {
   apiCommitHabitLayout,
   apiToggleCompletion,
   apiSetCount,
+  apiSetState,
+  apiDeleteCompletion,
   apiCreateSection,
   apiUpdateSection,
   apiDeleteSection,
@@ -63,6 +65,8 @@ class HabitStore {
 
   donesByHabit = $derived.by(() => computeDonesByHabit(this.data.habits, this.data.completions));
 
+  skippedByHabit = $derived.by(() => computeSkippedByHabit(this.data.completions));
+
   dueHabits = $derived.by(() => computeDueHabits(this.data.habits, selectedDate.value));
 
   dueGroups = $derived.by(() => groupHabitsBySection(this.data.sections, this.dueHabits));
@@ -81,11 +85,13 @@ class HabitStore {
 
   todoGroups = $derived.by(() => computeTodoGroups(this.data.todoSections, this.data.todos));
 
-  doneCount = $derived.by(() =>
-    computeDoneCount(this.dueHabits, this.donesByHabit, selectedDate.value)
+  dailyProgress = $derived.by(() =>
+    progressForDate(this.data.habits, this.donesByHabit, this.skippedByHabit, selectedDate.value)
   );
 
-  totalCount = $derived(this.dueHabits.length);
+  doneCount = $derived(this.dailyProgress.done);
+
+  totalCount = $derived(this.dailyProgress.total);
 
   progressPct = $derived(computeProgressPct(this.doneCount, this.totalCount));
 
@@ -288,14 +294,31 @@ class HabitStore {
   setCount(habitId: string, date: string, count: number): void {
     if (count < 0) count = 0;
     const idx = this.data.completions.findIndex((c) => c.habitId === habitId && c.date === date);
+    const existing = idx !== -1 ? this.data.completions[idx] : undefined;
+    const wasSkipped = existing?.state === 'skipped';
+    const habit = this.data.habits.find((h) => h.id === habitId);
+    const target = habit?.type === 'counter' ? effectiveTarget(habit, date) : 0;
+    const shouldUnSkip = wasSkipped && target > 0 && count >= target;
+
     if (count === 0) {
-      if (idx !== -1) this.data.completions.splice(idx, 1);
-    } else if (idx === -1) {
-      this.data.completions.push({ habitId, date, count });
+      if (existing) {
+        if (existing.state === 'skipped') {
+          this.data.completions[idx] = { habitId, date, state: 'skipped' };
+        } else {
+          this.data.completions.splice(idx, 1);
+        }
+      }
     } else {
-      this.data.completions[idx] = { habitId, date, count };
+      const next: Completion = { habitId, date, count };
+      if (wasSkipped && !shouldUnSkip) next.state = 'skipped';
+      if (existing) this.data.completions[idx] = next;
+      else this.data.completions.push(next);
     }
+
     apiSetCount(habitId, date, count).catch(this.handleError);
+    if (shouldUnSkip) {
+      apiSetState(habitId, date, null).catch(this.handleError);
+    }
   }
 
   getCount(habitId: string, date: string): number {
@@ -307,12 +330,83 @@ class HabitStore {
     return this.donesByHabit.get(habitId)?.has(date) === true;
   }
 
+  isSkipped(habitId: string, date: string): boolean {
+    return this.skippedByHabit.get(habitId)?.has(date) === true;
+  }
+
+  setSkipped(habitId: string, date: string): void {
+    const idx = this.data.completions.findIndex((c) => c.habitId === habitId && c.date === date);
+    if (idx === -1) {
+      this.data.completions.push({ habitId, date, state: 'skipped' });
+    } else {
+      this.data.completions[idx] = { ...this.data.completions[idx], state: 'skipped' };
+    }
+    apiSetState(habitId, date, 'skipped').catch(this.handleError);
+  }
+
+  clearSkipped(habitId: string, date: string): void {
+    const idx = this.data.completions.findIndex((c) => c.habitId === habitId && c.date === date);
+    if (idx === -1 || this.data.completions[idx].state !== 'skipped') return;
+    const next: Completion = { ...this.data.completions[idx] };
+    delete next.state;
+    this.data.completions[idx] = next;
+    apiSetState(habitId, date, null).catch(this.handleError);
+  }
+
+  deleteCompletion(habitId: string, date: string): void {
+    const idx = this.data.completions.findIndex((c) => c.habitId === habitId && c.date === date);
+    if (idx !== -1) this.data.completions.splice(idx, 1);
+    apiDeleteCompletion(habitId, date).catch(this.handleError);
+  }
+
+  setCompletionState(
+    habitId: string,
+    date: string,
+    next: 'incomplete' | 'complete' | 'skipped'
+  ): void {
+    const habit = this.data.habits.find((h) => h.id === habitId);
+    if (!habit) return;
+    const wasSkipped = this.isSkipped(habitId, date);
+    const wasDone = this.isDone(habitId, date);
+
+    if (next === 'skipped') {
+      if (!wasSkipped) this.setSkipped(habitId, date);
+      return;
+    }
+
+    if (next === 'incomplete') {
+      const exists = this.data.completions.some((c) => c.habitId === habitId && c.date === date);
+      if (exists) this.deleteCompletion(habitId, date);
+      return;
+    }
+
+    // next === 'complete'
+    if (habit.type === 'binary') {
+      if (wasSkipped) {
+        this.clearSkipped(habitId, date);
+        // For binary habits, the row remaining after clearing skip already represents "complete".
+      } else if (!wasDone) {
+        this.toggleCompletion(habitId, date);
+      }
+    } else {
+      const t = effectiveTarget(habit, date);
+      if (wasSkipped) this.clearSkipped(habitId, date);
+      if (this.getCount(habitId, date) < t) this.setCount(habitId, date, t);
+    }
+  }
+
   progressForDate(date: string): { done: number; total: number } {
-    return progressForDate(this.data.habits, this.donesByHabit, date);
+    return progressForDate(this.data.habits, this.donesByHabit, this.skippedByHabit, date);
   }
 
   sectionProgressFor(habits: Habit[]): { done: number; total: number } {
-    return sectionProgress(habits, this.dueHabitIds, this.donesByHabit, selectedDate.value);
+    return sectionProgress(
+      habits,
+      this.dueHabitIds,
+      this.donesByHabit,
+      this.skippedByHabit,
+      selectedDate.value
+    );
   }
 
   addTodo(input: { name: string; sectionId?: string; openDate?: string; dueDate?: string }): Todo {

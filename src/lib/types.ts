@@ -29,10 +29,13 @@ export type BinaryHabit = BaseHabit & { type: 'binary' };
 export type CounterHabit = BaseHabit & { type: 'counter'; counter: CounterConfig };
 export type Habit = BinaryHabit | CounterHabit;
 
+export type CompletionState = 'skipped';
+
 export type Completion = {
   habitId: string;
   date: string;
   count?: number;
+  state?: CompletionState;
 };
 
 export type Section = {

@@ -11,12 +11,27 @@ export function computeDonesByHabit(
   for (const h of habits) byId.set(h.id, h);
   const map = new Map<string, Set<string>>();
   for (const c of completions) {
+    if (c.state === 'skipped') continue;
     const habit = byId.get(c.habitId);
     if (!habit) continue;
     if (habit.type === 'counter') {
       const count = c.count ?? 0;
       if (count < effectiveTarget(habit, c.date)) continue;
     }
+    let set = map.get(c.habitId);
+    if (!set) {
+      set = new Set();
+      map.set(c.habitId, set);
+    }
+    set.add(c.date);
+  }
+  return map;
+}
+
+export function computeSkippedByHabit(completions: Completion[]): Map<string, Set<string>> {
+  const map = new Map<string, Set<string>>();
+  for (const c of completions) {
+    if (c.state !== 'skipped') continue;
     let set = map.get(c.habitId);
     if (!set) {
       set = new Set();
@@ -79,12 +94,14 @@ export function sectionProgress(
   sectionHabits: Habit[],
   dueHabitIds: Set<string>,
   donesByHabit: Map<string, Set<string>>,
+  skippedByHabit: Map<string, Set<string>>,
   date: string
 ): { done: number; total: number } {
   let done = 0;
   let total = 0;
   for (const h of sectionHabits) {
     if (!dueHabitIds.has(h.id)) continue;
+    if (skippedByHabit.get(h.id)?.has(date)) continue;
     total++;
     if (donesByHabit.get(h.id)?.has(date) === true) done++;
   }
@@ -94,6 +111,7 @@ export function sectionProgress(
 export function progressForDate(
   habits: Habit[],
   donesByHabit: Map<string, Set<string>>,
+  skippedByHabit: Map<string, Set<string>>,
   date: string
 ): { done: number; total: number } {
   let total = 0;
@@ -101,6 +119,7 @@ export function progressForDate(
   for (const h of habits) {
     if (!isDueOn(h, date)) continue;
     if (h.startDate > date) continue;
+    if (skippedByHabit.get(h.id)?.has(date)) continue;
     total++;
     if (donesByHabit.get(h.id)?.has(date)) done++;
   }
