@@ -23,10 +23,10 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@sveltejs/adapter-static": "^3.0.5",
     "@sveltejs/kit": "^2.15.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@tailwindcss/vite": "^4.0.0",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0",
     "@types/sortablejs": "^1.15.9",
     "eslint": "^10.4.0",
@@ -46,6 +46,8 @@
     "vite": "^6.0.0"
   },
   "dependencies": {
+    "@sveltejs/adapter-node": "^5.5.4",
+    "better-sqlite3": "^12.10.0",
     "sortablejs": "^1.15.7"
   }
 }

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { store } from '$lib/store.svelte';
   import { appearance, type Accent } from '$lib/appearance.svelte';
-  import { emptyAppData } from '$lib/types';
   import {
     buildExportPayload,
     downloadJson,
@@ -126,8 +125,8 @@
     browserBackupRaw = null;
   }
 
-  function doReset() {
-    store.replaceAll(emptyAppData());
+  async function doReset() {
+    await store.resetAll();
     close();
   }
 

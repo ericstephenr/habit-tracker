@@ -1,9 +1,7 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import type { Habit, Section, Todo } from '$lib/types';
   import { store } from '$lib/store.svelte';
-  import { todayISO } from '$lib/schedule';
-  import { readBackup } from '$lib/storage';
-  import { downloadJson } from '$lib/importExport';
   import { selectedDate } from '$lib/selectedDate.svelte';
   import { fireDayCompleteBursts } from '$lib/confetti';
   import HabitItem from '$lib/components/HabitItem.svelte';
@@ -23,6 +21,10 @@
   import Sidebar from '$lib/components/Sidebar.svelte';
   import Sortable from 'sortablejs';
   import { SvelteMap } from 'svelte/reactivity';
+
+  onMount(() => {
+    store.init();
+  });
 
   let activeTab = $state<'habits' | 'todos'>('habits');
   let showAll = $state(false);
@@ -268,12 +270,6 @@
     todoSectionModalOpen = true;
   }
 
-  function downloadBackup() {
-    const raw = readBackup();
-    if (!raw) return;
-    downloadJson(`habit-tracker-backup-${todayISO()}.json`, raw);
-  }
-
   let hasStructure = $derived(store.hasAnyHabit);
   let activeGroups = $derived(showAll ? store.allStartedGroups : store.dueGroups);
 
@@ -300,159 +296,134 @@
     }
     lastComplete = { date, complete };
   });
-
-  // ── Recovery banner: track dismissal so we don't re-render after close ──
-  function dismissRecovery() {
-    store.dismissRecoveryNotice();
-  }
 </script>
 
 <svelte:head>
   <title>{pageTitle} · Habit Tracker</title>
 </svelte:head>
 
-<div class="app-shell">
-  {#if isDesktop}
-    <Sidebar
-      {activeTab}
-      onTabChange={(tab) => (activeTab = tab)}
-      onScrollToSection={scrollToSection}
-    />
-  {/if}
-
-  <div class="app-body">
-    {#if store.recoveryNotice}
+{#if !store.ready}
+  <div class="app-shell" style="align-items: center; justify-content: center;">
+    {#if store.syncError}
       <div
-        role="status"
-        style="margin: 12px 16px; padding: 14px 16px;
-               border-radius: var(--r-md); border: 1px solid var(--danger);
-               background: var(--danger-soft); color: var(--ink);
-               font-family: var(--font-body); font-size: var(--fs-body);"
+        style="text-align: center; padding: 24px; font-family: var(--font-body); color: var(--danger);"
       >
-        <p style="margin: 0 0 10px;">
-          Your habit data couldn't be read and was reset. A backup of the raw data is saved locally.
-        </p>
-        <div style="display: flex; gap: 8px;">
-          <button
-            type="button"
-            onclick={downloadBackup}
-            style="padding: 7px 14px; border: 0; border-radius: var(--r-md);
-                   background: var(--danger); color: #fff;
-                   font-family: var(--font-body); font-size: var(--fs-meta); font-weight: 600;
-                   cursor: pointer;"
-          >
-            Download backup
-          </button>
-          <button
-            type="button"
-            onclick={dismissRecovery}
-            style="padding: 7px 14px; border: 0; border-radius: var(--r-md);
-                   background: transparent; color: var(--ink-muted);
-                   font-family: var(--font-body); font-size: var(--fs-meta); font-weight: 600;
-                   cursor: pointer;"
-          >
-            Dismiss
-          </button>
-        </div>
+        <p style="font-size: 16px; font-weight: 600; margin: 0 0 8px;">Failed to connect</p>
+        <p style="font-size: 14px; color: var(--ink-muted); margin: 0;">{store.syncError}</p>
+      </div>
+    {:else}
+      <div style="color: var(--ink-muted); font-family: var(--font-body); font-size: 14px;">
+        Loading...
       </div>
     {/if}
+  </div>
+{:else}
+  <div class="app-shell">
+    {#if isDesktop}
+      <Sidebar
+        {activeTab}
+        onTabChange={(tab) => (activeTab = tab)}
+        onScrollToSection={scrollToSection}
+      />
+    {/if}
 
-    <!-- Top bar -->
-    <header class="top-bar" class:is-desktop={isDesktop}>
-      {#if isDesktop}
-        <div style="flex: 1;"></div>
-        <div style="position: relative;">
-          <button
-            type="button"
-            onclick={() => (addMenuOpen = !addMenuOpen)}
-            aria-label="Add new"
-            aria-expanded={addMenuOpen}
-            style="width: 40px; height: 40px; border: 0; border-radius: var(--r-pill);
+    <div class="app-body">
+      <!-- Top bar -->
+      <header class="top-bar" class:is-desktop={isDesktop}>
+        {#if isDesktop}
+          <div style="flex: 1;"></div>
+          <div style="position: relative;">
+            <button
+              type="button"
+              onclick={() => (addMenuOpen = !addMenuOpen)}
+              aria-label="Add new"
+              aria-expanded={addMenuOpen}
+              style="width: 40px; height: 40px; border: 0; border-radius: var(--r-pill);
                    background: var(--accent); color: var(--accent-on);
                    display: flex; align-items: center; justify-content: center;
                    cursor: pointer; box-shadow: 0 4px 14px var(--accent-glow);"
-          >
-            <IconPlus class="h-5 w-5" />
-          </button>
-          <AddMenu bind:open={addMenuOpen} anchor="below" onSelect={handleAddMenuSelect} />
-        </div>
-        <button
-          type="button"
-          onclick={() => (dataModalOpen = true)}
-          aria-label="Open settings"
-          style="width: 40px; height: 40px; border: 0; border-radius: var(--r-pill);
+            >
+              <IconPlus class="h-5 w-5" />
+            </button>
+            <AddMenu bind:open={addMenuOpen} anchor="below" onSelect={handleAddMenuSelect} />
+          </div>
+          <button
+            type="button"
+            onclick={() => (dataModalOpen = true)}
+            aria-label="Open settings"
+            style="width: 40px; height: 40px; border: 0; border-radius: var(--r-pill);
                  background: var(--surface-2); color: var(--ink-muted);
                  display: flex; align-items: center; justify-content: center;
                  cursor: pointer; flex-shrink: 0;
                  transition: background var(--t-quick) var(--ease-out),
                              color var(--t-quick) var(--ease-out);"
-        >
-          <IconGear class="h-[18px] w-[18px]" />
-        </button>
-      {:else}
-        <button
-          type="button"
-          onclick={() => (activeTab = activeTab === 'habits' ? 'todos' : 'habits')}
-          aria-label={`Currently on ${activeTab === 'habits' ? 'Habits' : 'Tasks'} — tap to switch`}
-          style="display: flex; background: var(--surface-2);
+          >
+            <IconGear class="h-[18px] w-[18px]" />
+          </button>
+        {:else}
+          <button
+            type="button"
+            onclick={() => (activeTab = activeTab === 'habits' ? 'todos' : 'habits')}
+            aria-label={`Currently on ${activeTab === 'habits' ? 'Habits' : 'Tasks'} — tap to switch`}
+            style="display: flex; background: var(--surface-2);
                  border-radius: 99px; padding: 4px; gap: 2px;
                  border: 0; cursor: pointer;"
-        >
-          {#each [{ value: 'habits' as const, label: 'Habits' }, { value: 'todos' as const, label: 'Tasks' }] as opt (opt.value)}
-            {@const active = opt.value === activeTab}
-            <span
-              style="padding: 10px 18px; border-radius: 99px;
+          >
+            {#each [{ value: 'habits' as const, label: 'Habits' }, { value: 'todos' as const, label: 'Tasks' }] as opt (opt.value)}
+              {@const active = opt.value === activeTab}
+              <span
+                style="padding: 10px 18px; border-radius: 99px;
                      pointer-events: none;
                      background: {active ? 'var(--surface)' : 'transparent'};
                      color: {active ? 'var(--ink)' : 'var(--ink-muted)'};
                      font-family: var(--font-display); font-size: 14px; font-weight: 600;
                      box-shadow: {active ? '0 2px 8px rgba(20,12,40,0.06)' : 'none'};
                      transition: all 180ms;"
-            >
-              {opt.label}
-            </span>
-          {/each}
-        </button>
-        <div style="flex: 1;"></div>
-        <button
-          type="button"
-          onclick={() => (dataModalOpen = true)}
-          aria-label="Open settings"
-          style="width: 40px; height: 40px; border: 0; border-radius: var(--r-pill);
+              >
+                {opt.label}
+              </span>
+            {/each}
+          </button>
+          <div style="flex: 1;"></div>
+          <button
+            type="button"
+            onclick={() => (dataModalOpen = true)}
+            aria-label="Open settings"
+            style="width: 40px; height: 40px; border: 0; border-radius: var(--r-pill);
                  background: var(--surface-2); color: var(--ink-muted);
                  display: flex; align-items: center; justify-content: center;
                  cursor: pointer; flex-shrink: 0;
                  transition: background var(--t-quick) var(--ease-out),
                              color var(--t-quick) var(--ease-out);"
-        >
-          <IconGear class="h-[18px] w-[18px]" />
-        </button>
-      {/if}
-    </header>
+          >
+            <IconGear class="h-[18px] w-[18px]" />
+          </button>
+        {/if}
+      </header>
 
-    <main class="app-main">
-      <!-- Habits view -->
-      {#if activeTab === 'habits'}
-        <section class="habits-pane">
-          <div class={isDesktop ? 'day-strip-static' : 'day-strip-sticky'}>
-            <DayStrip />
-          </div>
+      <main class="app-main">
+        <!-- Habits view -->
+        {#if activeTab === 'habits'}
+          <section class="habits-pane">
+            <div class={isDesktop ? 'day-strip-static' : 'day-strip-sticky'}>
+              <DayStrip />
+            </div>
 
-          <ProgressHero />
+            <ProgressHero />
 
-          {#if hasStructure}
-            <div style="padding: 22px 16px 0; display: flex; flex-direction: column; gap: 10px;">
-              {#if store.extraHabitCount > 0}
-                <div
-                  style="display: flex; align-items: center; justify-content: flex-end;
+            {#if hasStructure}
+              <div style="padding: 22px 16px 0; display: flex; flex-direction: column; gap: 10px;">
+                {#if store.extraHabitCount > 0}
+                  <div
+                    style="display: flex; align-items: center; justify-content: flex-end;
                           padding: 0 4px 0;"
-                >
-                  <button
-                    type="button"
-                    onclick={() => (showAll = !showAll)}
-                    aria-pressed={showAll}
-                    aria-label={showAll ? 'Show only scheduled habits' : 'Show all habits'}
-                    style="display: inline-flex; align-items: center; gap: 5px;
+                  >
+                    <button
+                      type="button"
+                      onclick={() => (showAll = !showAll)}
+                      aria-pressed={showAll}
+                      aria-label={showAll ? 'Show only scheduled habits' : 'Show all habits'}
+                      style="display: inline-flex; align-items: center; gap: 5px;
                          padding: 5px 12px; border-radius: 99px;
                          border: 1.5px solid {showAll ? 'var(--accent-soft)' : 'var(--line)'};
                          background: {showAll ? 'var(--accent-fill)' : 'transparent'};
@@ -461,331 +432,332 @@
                          letter-spacing: 0.4px; text-transform: uppercase;
                          cursor: pointer;
                          transition: all var(--t-quick) var(--ease-out);"
-                  >
-                    {showAll ? 'Scheduled only' : `Show all (${store.extraHabitCount})`}
-                  </button>
-                </div>
-              {/if}
+                    >
+                      {showAll ? 'Scheduled only' : `Show all (${store.extraHabitCount})`}
+                    </button>
+                  </div>
+                {/if}
 
-              <div bind:this={sectionsContainerRef}>
-                {#each activeGroups as group (group.section.id)}
-                  {@const counts = store.sectionProgressFor(group.habits)}
-                  <section data-section-id={group.section.id} style="margin-top: 14px;">
-                    <SectionHeader
-                      section={group.section}
-                      doneCount={counts.done}
-                      totalCount={counts.total}
-                      onRename={openRename}
-                    />
-                    <div
-                      style="display: grid;
+                <div bind:this={sectionsContainerRef}>
+                  {#each activeGroups as group (group.section.id)}
+                    {@const counts = store.sectionProgressFor(group.habits)}
+                    <section data-section-id={group.section.id} style="margin-top: 14px;">
+                      <SectionHeader
+                        section={group.section}
+                        doneCount={counts.done}
+                        totalCount={counts.total}
+                        onRename={openRename}
+                      />
+                      <div
+                        style="display: grid;
                            grid-template-rows: {group.section.collapsed ? '0fr' : '1fr'};
                            overflow: {group.section.collapsed ? 'hidden' : 'visible'};
                            transition: grid-template-rows var(--t-normal) var(--ease-out);"
-                    >
-                      <div
-                        style="overflow: hidden; min-height: 0;
-                             padding: 10px 16px 0; margin: -10px -16px 0;"
                       >
-                        <ul
-                          use:registerSectionUl={group.section.id}
-                          style="list-style: none; padding: 0; margin: 0;
+                        <div
+                          style="overflow: hidden; min-height: 0;
+                             padding: 10px 16px 0; margin: -10px -16px 0;"
+                        >
+                          <ul
+                            use:registerSectionUl={group.section.id}
+                            style="list-style: none; padding: 0; margin: 0;
                                display: flex; flex-direction: column; gap: 10px;
                                min-height: {group.habits.length === 0 ? '8px' : 'auto'};"
-                        >
-                          {#each group.habits as habit (habit.id)}
-                            <li data-id={habit.id}>
-                              <HabitItem
-                                {habit}
-                                date={selectedDate.value}
-                                onEdit={openEdit}
-                                inactive={isInactive(habit)}
-                              />
-                            </li>
-                          {/each}
-                        </ul>
-                        {#if group.habits.length === 0}
-                          <p
-                            style="text-align: center; color: var(--ink-faint);
-                                 font-size: var(--fs-meta); padding: 12px 0;"
                           >
-                            · no habits scheduled ·
-                          </p>
-                        {/if}
+                            {#each group.habits as habit (habit.id)}
+                              <li data-id={habit.id}>
+                                <HabitItem
+                                  {habit}
+                                  date={selectedDate.value}
+                                  onEdit={openEdit}
+                                  inactive={isInactive(habit)}
+                                />
+                              </li>
+                            {/each}
+                          </ul>
+                          {#if group.habits.length === 0}
+                            <p
+                              style="text-align: center; color: var(--ink-faint);
+                                 font-size: var(--fs-meta); padding: 12px 0;"
+                            >
+                              · no habits scheduled ·
+                            </p>
+                          {/if}
+                        </div>
                       </div>
-                    </div>
-                  </section>
-                {/each}
-              </div>
+                    </section>
+                  {/each}
+                </div>
 
-              <button
-                type="button"
-                onclick={openAddSection}
-                style="margin-top: 14px; padding: 8px 12px;
+                <button
+                  type="button"
+                  onclick={openAddSection}
+                  style="margin-top: 14px; padding: 8px 12px;
                      border: 1.5px dashed var(--line); border-radius: var(--r-md);
                      background: transparent; color: var(--ink-faint);
                      font-family: var(--font-display); font-size: var(--fs-meta); font-weight: 700;
                      letter-spacing: 0.6px; text-transform: uppercase;
                      cursor: pointer; width: 100%;
                      transition: border-color var(--t-quick), color var(--t-quick);"
-                onmouseenter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)';
-                  (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)';
-                }}
-                onmouseleave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--line)';
-                  (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
-                }}
-              >
-                + New section
-              </button>
-            </div>
-          {:else}
-            <!-- Empty state: Let's build a habit -->
-            <div style="padding: 36px 24px 0; text-align: center;">
-              <div
-                style="font-family: var(--font-display); font-weight: 700;
+                  onmouseenter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)';
+                    (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)';
+                  }}
+                  onmouseleave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--line)';
+                    (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
+                  }}
+                >
+                  + New section
+                </button>
+              </div>
+            {:else}
+              <!-- Empty state: Let's build a habit -->
+              <div style="padding: 36px 24px 0; text-align: center;">
+                <div
+                  style="font-family: var(--font-display); font-weight: 700;
                      font-size: 30px; line-height: 1.05; letter-spacing: -1.2px;
                      color: var(--ink); margin-bottom: 8px;"
-              >
-                Let's build a habit.
-              </div>
-              <p
-                style="margin: 0 auto 28px; max-width: 280px;
+                >
+                  Let's build a habit.
+                </div>
+                <p
+                  style="margin: 0 auto 28px; max-width: 280px;
                      font-family: var(--font-body); font-size: 14px; line-height: 1.45;
                      color: var(--ink-muted);"
-              >
-                Pick something small you'd like to do regularly. You can always tweak the schedule
-                later.
-              </p>
-              <div
-                class="ht-card"
-                style="margin: 0 auto; max-width: 320px;
+                >
+                  Pick something small you'd like to do regularly. You can always tweak the schedule
+                  later.
+                </p>
+                <div
+                  class="ht-card"
+                  style="margin: 0 auto; max-width: 320px;
                      background: var(--surface); border-radius: 18px;
                      padding: 18px; border: 1px solid var(--line);
                      box-shadow: 0 8px 30px rgba(20, 12, 40, 0.06);
                      display: flex; flex-direction: column; gap: 12px;"
-              >
-                <button
-                  type="button"
-                  onclick={openAdd}
-                  style="width: 100%; padding: 14px 16px; border-radius: 14px;
+                >
+                  <button
+                    type="button"
+                    onclick={openAdd}
+                    style="width: 100%; padding: 14px 16px; border-radius: 14px;
                        background: var(--accent); color: var(--accent-on);
                        border: 0; cursor: pointer;
                        font-family: var(--font-display); font-size: 16px; font-weight: 600;
                        letter-spacing: -0.2px;
                        box-shadow: 0 8px 22px var(--accent-glow);"
-                >
-                  + Add your first habit
-                </button>
-                <div
-                  style="display: flex; flex-direction: column; gap: 6px;
+                  >
+                    + Add your first habit
+                  </button>
+                  <div
+                    style="display: flex; flex-direction: column; gap: 6px;
                        font-family: var(--font-body); font-size: 12px; color: var(--ink-muted);
                        text-align: left;"
-                >
-                  <div
-                    style="font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
+                  >
+                    <div
+                      style="font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
                          text-transform: uppercase; color: var(--ink-faint);
                          margin-bottom: 2px; text-align: center;"
-                  >
-                    Examples
+                    >
+                      Examples
+                    </div>
+                    <div>• Drink 8 cups of water</div>
+                    <div>• Meditate 5 minutes</div>
+                    <div>• Read 20 pages</div>
                   </div>
-                  <div>• Drink 8 cups of water</div>
-                  <div>• Meditate 5 minutes</div>
-                  <div>• Read 20 pages</div>
                 </div>
               </div>
-            </div>
-          {/if}
-        </section>
-      {/if}
+            {/if}
+          </section>
+        {/if}
 
-      <!-- Tasks view -->
-      {#if activeTab === 'todos'}
-        <section class="tasks-pane">
-          <div style="padding: 14px 16px 0;">
-            <div style="padding: 4px 4px 14px;">
-              <div
-                style="font-family: var(--font-display); font-weight: 700;
+        <!-- Tasks view -->
+        {#if activeTab === 'todos'}
+          <section class="tasks-pane">
+            <div style="padding: 14px 16px 0;">
+              <div style="padding: 4px 4px 14px;">
+                <div
+                  style="font-family: var(--font-display); font-weight: 700;
                      font-size: var(--fs-display); line-height: 1.05; letter-spacing: -1.2px;
                      color: var(--ink);"
-              >
-                Tasks<span style="color: var(--accent);">.</span>
-              </div>
-              <div
-                style="margin-top: 6px; font-size: var(--fs-meta); font-weight: 600;
+                >
+                  Tasks<span style="color: var(--accent);">.</span>
+                </div>
+                <div
+                  style="margin-top: 6px; font-size: var(--fs-meta); font-weight: 600;
                      letter-spacing: 0.2px; color: var(--ink-faint);
                      font-variant-numeric: tabular-nums; text-transform: uppercase;"
-              >
-                {store.data.todos.length === 0
-                  ? 'A place for assignments and to-dos.'
-                  : `${todosOpen} open${todosDone > 0 ? ` · ${todosDone} done` : ''}`}
+                >
+                  {store.data.todos.length === 0
+                    ? 'A place for assignments and to-dos.'
+                    : `${todosOpen} open${todosDone > 0 ? ` · ${todosDone} done` : ''}`}
+                </div>
               </div>
-            </div>
 
-            <!-- Sections container (sortable for reordering sections) -->
-            <div bind:this={todoSectionsContainerRef} style="margin-top: 18px;">
-              {#each store.todoGroups as group (group.section.id)}
-                <div data-todo-section-id={group.section.id}>
-                  <TodoSectionHeader section={group.section} onRename={openRenameTodoSection} />
+              <!-- Sections container (sortable for reordering sections) -->
+              <div bind:this={todoSectionsContainerRef} style="margin-top: 18px;">
+                {#each store.todoGroups as group (group.section.id)}
+                  <div data-todo-section-id={group.section.id}>
+                    <TodoSectionHeader section={group.section} onRename={openRenameTodoSection} />
 
-                  {#if !group.section.collapsed}
-                    <ul
-                      use:registerTodoSectionUl={group.section.id}
-                      style="list-style: none; padding: 0; margin: 0 0 18px;
+                    {#if !group.section.collapsed}
+                      <ul
+                        use:registerTodoSectionUl={group.section.id}
+                        style="list-style: none; padding: 0; margin: 0 0 18px;
                            display: flex; flex-direction: column; gap: 8px;
                            min-height: 8px;"
-                    >
-                      {#each group.todos as todo (todo.id)}
-                        <li data-id={todo.id}>
-                          <TodoItem {todo} onEdit={openEditTodo} />
-                        </li>
-                      {/each}
-                    </ul>
-                  {/if}
-                </div>
-              {/each}
-            </div>
+                      >
+                        {#each group.todos as todo (todo.id)}
+                          <li data-id={todo.id}>
+                            <TodoItem {todo} onEdit={openEditTodo} />
+                          </li>
+                        {/each}
+                      </ul>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
 
-            <!-- + New section button (hidden when empty state is showing) -->
-            {#if store.data.todos.length > 0 || store.data.todoSections.length > 1}
-              <button
-                type="button"
-                onclick={openAddTodoSection}
-                style="margin-top: 14px; padding: 8px 12px;
+              <!-- + New section button (hidden when empty state is showing) -->
+              {#if store.data.todos.length > 0 || store.data.todoSections.length > 1}
+                <button
+                  type="button"
+                  onclick={openAddTodoSection}
+                  style="margin-top: 14px; padding: 8px 12px;
                      border: 1.5px dashed var(--line); border-radius: var(--r-md);
                      background: transparent; color: var(--ink-faint);
                      font-family: var(--font-display); font-size: var(--fs-meta); font-weight: 700;
                      letter-spacing: 0.6px; text-transform: uppercase;
                      cursor: pointer; width: 100%;
                      transition: border-color var(--t-quick), color var(--t-quick);"
-                onmouseenter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)';
-                  (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)';
-                }}
-                onmouseleave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--line)';
-                  (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
-                }}
-              >
-                + New section
-              </button>
-            {/if}
+                  onmouseenter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)';
+                    (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)';
+                  }}
+                  onmouseleave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--line)';
+                    (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
+                  }}
+                >
+                  + New section
+                </button>
+              {/if}
 
-            <!-- Empty state when no tasks at all -->
-            {#if todosOpen === 0 && todosDone === 0}
-              <div style="padding: 36px 24px 0; text-align: center;">
-                <div
-                  style="font-family: var(--font-display); font-weight: 700;
+              <!-- Empty state when no tasks at all -->
+              {#if todosOpen === 0 && todosDone === 0}
+                <div style="padding: 36px 24px 0; text-align: center;">
+                  <div
+                    style="font-family: var(--font-display); font-weight: 700;
                        font-size: 30px; line-height: 1.05; letter-spacing: -1.2px;
                        color: var(--ink); margin-bottom: 8px;"
-                >
-                  Capture a task.
-                </div>
-                <p
-                  style="margin: 0 auto 28px; max-width: 280px;
+                  >
+                    Capture a task.
+                  </div>
+                  <p
+                    style="margin: 0 auto 28px; max-width: 280px;
                        font-family: var(--font-body); font-size: 14px; line-height: 1.45;
                        color: var(--ink-muted);"
-                >
-                  One-offs that need doing — assignments, errands, calls. Different from habits,
-                  which recur.
-                </p>
-                <div
-                  class="ht-card"
-                  style="margin: 0 auto; max-width: 320px;
+                  >
+                    One-offs that need doing — assignments, errands, calls. Different from habits,
+                    which recur.
+                  </p>
+                  <div
+                    class="ht-card"
+                    style="margin: 0 auto; max-width: 320px;
                        background: var(--surface); border-radius: 18px;
                        padding: 18px; border: 1px solid var(--line);
                        box-shadow: 0 8px 30px rgba(20, 12, 40, 0.06);
                        display: flex; flex-direction: column; gap: 12px;"
-                >
-                  <button
-                    type="button"
-                    onclick={openAddTodo}
-                    style="width: 100%; padding: 14px 16px; border-radius: 14px;
+                  >
+                    <button
+                      type="button"
+                      onclick={openAddTodo}
+                      style="width: 100%; padding: 14px 16px; border-radius: 14px;
                          background: var(--accent); color: var(--accent-on);
                          border: 0; cursor: pointer;
                          font-family: var(--font-display); font-size: 16px; font-weight: 600;
                          letter-spacing: -0.2px;
                          box-shadow: 0 8px 22px var(--accent-glow);"
-                  >
-                    + Add your first task
-                  </button>
-                  <div
-                    style="display: flex; flex-direction: column; gap: 6px;
+                    >
+                      + Add your first task
+                    </button>
+                    <div
+                      style="display: flex; flex-direction: column; gap: 6px;
                          font-family: var(--font-body); font-size: 12px; color: var(--ink-muted);
                          text-align: left;"
-                  >
-                    <div
-                      style="font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
+                    >
+                      <div
+                        style="font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
                            text-transform: uppercase; color: var(--ink-faint);
                            margin-bottom: 2px; text-align: center;"
-                    >
-                      Examples
+                      >
+                        Examples
+                      </div>
+                      <div>• Email Sam about Friday</div>
+                      <div>• Pay the rent</div>
+                      <div>• Pick up dry cleaning</div>
                     </div>
-                    <div>• Email Sam about Friday</div>
-                    <div>• Pay the rent</div>
-                    <div>• Pick up dry cleaning</div>
                   </div>
                 </div>
-              </div>
-            {/if}
+              {/if}
 
-            <!-- DONE bucket: all done tasks, flat -->
-            {#if todosDone > 0}
-              <div style="margin-top: 24px;">
-                <div
-                  style="padding: 0 4px 10px;
+              <!-- DONE bucket: all done tasks, flat -->
+              {#if todosDone > 0}
+                <div style="margin-top: 24px;">
+                  <div
+                    style="padding: 0 4px 10px;
                        font-family: var(--font-display); font-size: var(--fs-overline); font-weight: 700;
                        letter-spacing: 1.4px; text-transform: uppercase;
                        color: var(--ink-faint);
                        display: flex; align-items: center; gap: 8px;"
-                >
-                  <span>Done</span>
-                  <span
-                    style="padding: 2px 7px; border-radius: 99px;
+                  >
+                    <span>Done</span>
+                    <span
+                      style="padding: 2px 7px; border-radius: 99px;
                          background: var(--surface-2); color: var(--ink-muted);
                          font-size: var(--fs-overline); letter-spacing: 0.4px;
                          font-variant-numeric: tabular-nums;"
-                  >
-                    {todosDone}
-                  </span>
+                    >
+                      {todosDone}
+                    </span>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                    {#each allDoneTodos as todo (todo.id)}
+                      <TodoItem {todo} onEdit={openEditTodo} />
+                    {/each}
+                  </div>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 8px;">
-                  {#each allDoneTodos as todo (todo.id)}
-                    <TodoItem {todo} onEdit={openEditTodo} />
-                  {/each}
-                </div>
-              </div>
-            {/if}
-          </div>
-        </section>
+              {/if}
+            </div>
+          </section>
+        {/if}
+      </main>
+
+      <!-- FAB (mobile) -->
+      {#if !isDesktop}
+        <div class="fab-wrap">
+          <button
+            type="button"
+            onclick={() => (addMenuOpen = !addMenuOpen)}
+            aria-label="Add new"
+            aria-expanded={addMenuOpen}
+            class="fab"
+          >
+            <IconPlus class="h-7 w-7" />
+          </button>
+          <AddMenu bind:open={addMenuOpen} anchor="above" onSelect={handleAddMenuSelect} />
+        </div>
       {/if}
-    </main>
-
-    <!-- FAB (mobile) -->
-    {#if !isDesktop}
-      <div class="fab-wrap">
-        <button
-          type="button"
-          onclick={() => (addMenuOpen = !addMenuOpen)}
-          aria-label="Add new"
-          aria-expanded={addMenuOpen}
-          class="fab"
-        >
-          <IconPlus class="h-7 w-7" />
-        </button>
-        <AddMenu bind:open={addMenuOpen} anchor="above" onSelect={handleAddMenuSelect} />
-      </div>
-    {/if}
+    </div>
+    <!-- .app-body -->
   </div>
-  <!-- .app-body -->
-</div>
 
-<AddHabitModal bind:open={modalOpen} habit={editingHabit} />
-<SectionModal bind:open={sectionModalOpen} section={editingSection} />
-<TodoModal bind:open={todoModalOpen} todo={editingTodo} />
-<TodoSectionModal bind:open={todoSectionModalOpen} section={editingTodoSection} />
-<DataModal bind:open={dataModalOpen} />
+  <AddHabitModal bind:open={modalOpen} habit={editingHabit} />
+  <SectionModal bind:open={sectionModalOpen} section={editingSection} />
+  <TodoModal bind:open={todoModalOpen} todo={editingTodo} />
+  <TodoSectionModal bind:open={todoSectionModalOpen} section={editingTodoSection} />
+  <DataModal bind:open={dataModalOpen} />
+{/if}
 
 <style>
   .app-shell {

@@ -4,7 +4,7 @@ import { emptyAppData } from './types';
 import { newId } from './ids';
 import { normalizeDays } from './schedule';
 import { selectedDate } from './selectedDate.svelte';
-import { STORAGE_KEY, loadInitial, migrate, save } from './storage';
+import { STORAGE_KEY, migrate } from './storage';
 import {
   computeDonesByHabit,
   computeDueHabits,
@@ -16,6 +16,29 @@ import {
   sectionProgress,
   progressForDate
 } from './storeOps';
+import {
+  fetchAllData,
+  apiCreateHabit,
+  apiUpdateHabit,
+  apiDeleteHabit,
+  apiCommitHabitLayout,
+  apiToggleCompletion,
+  apiSetCount,
+  apiCreateSection,
+  apiUpdateSection,
+  apiDeleteSection,
+  apiReorderSections,
+  apiCreateTodo,
+  apiUpdateTodo,
+  apiDeleteTodo,
+  apiCommitTodoLayout,
+  apiCreateTodoSection,
+  apiUpdateTodoSection,
+  apiDeleteTodoSection,
+  apiImportData,
+  apiResetAll,
+  apiClearHistoryBefore
+} from './api';
 export type { TodoGroup } from './storeOps';
 
 export type NewHabitInput =
@@ -35,7 +58,8 @@ export type HabitPatch = Partial<Pick<Habit, 'name' | 'schedule' | 'startDate' |
 
 class HabitStore {
   data: AppData = $state(emptyAppData());
-  recoveryNotice = $state(false);
+  ready = $state(false);
+  syncError = $state<string | null>(null);
 
   donesByHabit = $derived.by(() => computeDonesByHabit(this.data.habits, this.data.completions));
 
@@ -67,34 +91,52 @@ class HabitStore {
 
   hasAnyHabit = $derived(this.data.habits.length > 0);
 
-  constructor() {
-    const initial = loadInitial();
-    this.data = initial.data;
-    this.recoveryNotice = initial.recoveredFromCorruption;
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('storage', this.onStorageEvent);
-    }
-  }
-
-  private onStorageEvent = (e: StorageEvent): void => {
-    if (e.key !== STORAGE_KEY) return;
-    if (e.newValue === null) return;
-    try {
-      const next = migrate(JSON.parse(e.newValue));
-      if (next) this.data = next;
-    } catch {
-      // Ignore: another tab wrote garbage. Our own state is unaffected.
-    }
+  private handleError = (e: unknown): void => {
+    console.error('Sync error:', e);
+    this.syncError = e instanceof Error ? e.message : 'Sync failed';
   };
 
-  dismissRecoveryNotice(): void {
-    this.recoveryNotice = false;
+  dismissSyncError(): void {
+    this.syncError = null;
+  }
+
+  async init(): Promise<void> {
+    try {
+      const serverData = await fetchAllData();
+      // If server DB is empty, check localStorage for migration
+      if (
+        serverData.habits.length === 0 &&
+        serverData.todos.length === 0 &&
+        typeof localStorage !== 'undefined'
+      ) {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          try {
+            const migrated = migrate(JSON.parse(raw));
+            if (migrated) {
+              await apiImportData(migrated);
+              this.data = migrated;
+              localStorage.removeItem(STORAGE_KEY);
+              localStorage.removeItem('habit-tracker:backup');
+              this.ready = true;
+              return;
+            }
+          } catch {
+            // Fall through to use server data
+          }
+        }
+      }
+      this.data = serverData;
+      this.ready = true;
+    } catch (e) {
+      console.error('Failed to load from server:', e);
+      this.syncError = 'Failed to connect to server';
+    }
   }
 
   replaceAll(next: AppData): void {
     this.data = next;
-    save(this.data);
+    apiImportData(next).catch(this.handleError);
   }
 
   addHabit(input: NewHabitInput & { sectionId?: string }): Habit {
@@ -112,7 +154,7 @@ class HabitStore {
         ? { ...base, type: 'counter', counter: input.counter }
         : { ...base, type: 'binary' };
     this.data.habits.push(habit);
-    save(this.data);
+    apiCreateHabit(habit).catch(this.handleError);
     return habit;
   }
 
@@ -124,8 +166,6 @@ class HabitStore {
     if (patch.startDate !== undefined) {
       const newStart = patch.startDate;
       h.startDate = newStart;
-      // Maintain the invariant that completions exist only on/after startDate.
-      // Caller is responsible for warning the user first when this would discard data.
       this.data.completions = this.data.completions.filter(
         (c) => c.habitId !== id || c.date >= newStart
       );
@@ -138,7 +178,7 @@ class HabitStore {
       if (trimmed) h.notes = trimmed;
       else delete h.notes;
     }
-    save(this.data);
+    apiUpdateHabit(id, patch).catch(this.handleError);
     return true;
   }
 
@@ -165,13 +205,13 @@ class HabitStore {
     }
     for (const h of this.data.habits) if (!seen.has(h.id)) next.push(h);
     this.data.habits = next;
-    save(this.data);
+    apiCommitHabitLayout(groups).catch(this.handleError);
   }
 
   addSection(name: string): Section {
     const section: Section = { id: newId(), name: name.trim(), collapsed: false };
     this.data.sections.push(section);
-    save(this.data);
+    apiCreateSection(section).catch(this.handleError);
     return section;
   }
 
@@ -179,7 +219,7 @@ class HabitStore {
     const s = this.data.sections.find((x) => x.id === id);
     if (!s) return false;
     s.name = name.trim();
-    save(this.data);
+    apiUpdateSection(id, { name: s.name }).catch(this.handleError);
     return true;
   }
 
@@ -187,7 +227,7 @@ class HabitStore {
     const s = this.data.sections.find((x) => x.id === id);
     if (!s) return;
     s.collapsed = !s.collapsed;
-    save(this.data);
+    apiUpdateSection(id, { collapsed: s.collapsed }).catch(this.handleError);
   }
 
   deleteSection(id: string): boolean {
@@ -199,7 +239,7 @@ class HabitStore {
     for (const h of this.data.habits) {
       if (h.sectionId === id) h.sectionId = fallback;
     }
-    save(this.data);
+    apiDeleteSection(id).catch(this.handleError);
     return true;
   }
 
@@ -215,7 +255,7 @@ class HabitStore {
     }
     for (const s of this.data.sections) if (!seen.has(s.id)) reordered.push(s);
     this.data.sections = reordered;
-    save(this.data);
+    apiReorderSections(newIds).catch(this.handleError);
   }
 
   clearHistoryBefore(dateCutoff: string): void {
@@ -223,7 +263,7 @@ class HabitStore {
     for (const h of this.data.habits) {
       if (h.startDate < dateCutoff) h.startDate = dateCutoff;
     }
-    save(this.data);
+    apiClearHistoryBefore(dateCutoff).catch(this.handleError);
   }
 
   deleteHabit(id: string): boolean {
@@ -231,7 +271,7 @@ class HabitStore {
     if (idx === -1) return false;
     this.data.habits.splice(idx, 1);
     this.data.completions = this.data.completions.filter((c) => c.habitId !== id);
-    save(this.data);
+    apiDeleteHabit(id).catch(this.handleError);
     return true;
   }
 
@@ -242,7 +282,7 @@ class HabitStore {
     } else {
       this.data.completions.splice(idx, 1);
     }
-    save(this.data);
+    apiToggleCompletion(habitId, date).catch(this.handleError);
   }
 
   setCount(habitId: string, date: string, count: number): void {
@@ -255,7 +295,7 @@ class HabitStore {
     } else {
       this.data.completions[idx] = { habitId, date, count };
     }
-    save(this.data);
+    apiSetCount(habitId, date, count).catch(this.handleError);
   }
 
   getCount(habitId: string, date: string): number {
@@ -285,7 +325,7 @@ class HabitStore {
       ...(input.dueDate ? { dueDate: input.dueDate } : {})
     };
     this.data.todos.push(todo);
-    save(this.data);
+    apiCreateTodo(todo).catch(this.handleError);
     return todo;
   }
 
@@ -305,7 +345,12 @@ class HabitStore {
       if (patch.dueDate) t.dueDate = patch.dueDate;
       else delete t.dueDate;
     }
-    save(this.data);
+    apiUpdateTodo(id, {
+      name: patch.name,
+      sectionId: patch.sectionId,
+      ...('openDate' in patch ? { openDate: patch.openDate || null } : {}),
+      ...('dueDate' in patch ? { dueDate: patch.dueDate || null } : {})
+    }).catch(this.handleError);
     return true;
   }
 
@@ -313,14 +358,14 @@ class HabitStore {
     const t = this.data.todos.find((x) => x.id === id);
     if (!t) return;
     t.done = !t.done;
-    save(this.data);
+    apiUpdateTodo(id, { done: t.done }).catch(this.handleError);
   }
 
   deleteTodo(id: string): boolean {
     const idx = this.data.todos.findIndex((t) => t.id === id);
     if (idx === -1) return false;
     this.data.todos.splice(idx, 1);
-    save(this.data);
+    apiDeleteTodo(id).catch(this.handleError);
     return true;
   }
 
@@ -355,13 +400,13 @@ class HabitStore {
     for (const s of this.data.todoSections) if (!seenSections.has(s.id)) nextSections.push(s);
     this.data.todoSections = nextSections;
 
-    save(this.data);
+    apiCommitTodoLayout(groups, todoSectionIds).catch(this.handleError);
   }
 
   addTodoSection(name: string): Section {
     const section: Section = { id: newId(), name: name.trim(), collapsed: false };
     this.data.todoSections.push(section);
-    save(this.data);
+    apiCreateTodoSection(section).catch(this.handleError);
     return section;
   }
 
@@ -369,7 +414,7 @@ class HabitStore {
     const s = this.data.todoSections.find((x) => x.id === id);
     if (!s) return false;
     s.name = name.trim();
-    save(this.data);
+    apiUpdateTodoSection(id, { name: s.name }).catch(this.handleError);
     return true;
   }
 
@@ -377,7 +422,7 @@ class HabitStore {
     const s = this.data.todoSections.find((x) => x.id === id);
     if (!s) return;
     s.collapsed = !s.collapsed;
-    save(this.data);
+    apiUpdateTodoSection(id, { collapsed: s.collapsed }).catch(this.handleError);
   }
 
   deleteTodoSection(id: string): boolean {
@@ -389,8 +434,14 @@ class HabitStore {
     for (const t of this.data.todos) {
       if (t.sectionId === id) t.sectionId = fallback;
     }
-    save(this.data);
+    apiDeleteTodoSection(id).catch(this.handleError);
     return true;
+  }
+
+  async resetAll(): Promise<void> {
+    await apiResetAll();
+    const fresh = await fetchAllData();
+    this.data = fresh;
   }
 }
 
