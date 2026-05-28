@@ -83,6 +83,14 @@ export async function apiDeleteCompletion(habitId: string, date: string): Promis
   await call('/api/completions', 'POST', { habitId, date, delete: true });
 }
 
+export async function apiSetTargetOverride(
+  habitId: string,
+  date: string,
+  override: number | null
+): Promise<void> {
+  await call('/api/completions', 'POST', { habitId, date, targetOverride: override });
+}
+
 // Sections
 
 export async function apiCreateSection(section: Section): Promise<void> {

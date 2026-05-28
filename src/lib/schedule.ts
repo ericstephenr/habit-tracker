@@ -37,7 +37,12 @@ export function isDueOn(habit: Habit, dateISO: string): boolean {
   return habit.schedule.days.includes(weekdayOf(dateISO));
 }
 
-export function effectiveTarget(habit: CounterHabit, dateISO: string): number {
+export function effectiveTarget(
+  habit: CounterHabit,
+  dateISO: string,
+  override?: number | null
+): number {
+  if (override != null && override > 0) return override;
   return habit.counter.perDayTargets?.[weekdayOf(dateISO)] ?? habit.counter.target;
 }
 

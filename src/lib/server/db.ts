@@ -33,6 +33,9 @@ function getDb(): Database.Database {
   if (!cols.some((c) => c.name === 'state')) {
     _db.exec('ALTER TABLE completions ADD COLUMN state TEXT');
   }
+  if (!cols.some((c) => c.name === 'target_override')) {
+    _db.exec('ALTER TABLE completions ADD COLUMN target_override INTEGER');
+  }
   return _db;
 }
 
@@ -57,10 +60,11 @@ CREATE TABLE IF NOT EXISTS habits (
 );
 
 CREATE TABLE IF NOT EXISTS completions (
-  habit_id  TEXT NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
-  date      TEXT NOT NULL,
-  count     INTEGER,
-  state     TEXT,
+  habit_id        TEXT NOT NULL REFERENCES habits(id) ON DELETE CASCADE,
+  date            TEXT NOT NULL,
+  count           INTEGER,
+  state           TEXT,
+  target_override INTEGER,
   PRIMARY KEY (habit_id, date)
 );
 
@@ -110,6 +114,7 @@ interface CompletionRow {
   date: string;
   count: number | null;
   state: string | null;
+  target_override: number | null;
 }
 
 interface TodoRow {
@@ -149,6 +154,7 @@ function toCompletion(row: CompletionRow): Completion {
   const c: Completion = { habitId: row.habit_id, date: row.date };
   if (row.count != null) c.count = row.count;
   if (row.state === 'skipped') c.state = 'skipped';
+  if (row.target_override != null) c.targetOverride = row.target_override;
   return c;
 }
 
@@ -234,10 +240,16 @@ export function importData(data: AppData): void {
     }
 
     const insertCompletion = db.prepare(
-      'INSERT INTO completions (habit_id, date, count, state) VALUES (?, ?, ?, ?)'
+      'INSERT INTO completions (habit_id, date, count, state, target_override) VALUES (?, ?, ?, ?, ?)'
     );
     for (const c of data.completions) {
-      insertCompletion.run(c.habitId, c.date, c.count ?? null, c.state ?? null);
+      insertCompletion.run(
+        c.habitId,
+        c.date,
+        c.count ?? null,
+        c.state ?? null,
+        c.targetOverride ?? null
+      );
     }
 
     const insertTodoSection = db.prepare(
@@ -437,14 +449,14 @@ export function toggleCompletion(habitId: string, date: string): boolean {
 export function setCount(habitId: string, date: string, count: number): void {
   const db = getDb();
   if (count <= 0) {
-    // Preserve a 'skipped' row even when count zeroes out.
+    // Preserve a 'skipped' row or a target override row even when count zeroes out.
     db.transaction(() => {
       db.prepare('UPDATE completions SET count = NULL WHERE habit_id = ? AND date = ?').run(
         habitId,
         date
       );
       db.prepare(
-        'DELETE FROM completions WHERE habit_id = ? AND date = ? AND count IS NULL AND state IS NULL'
+        'DELETE FROM completions WHERE habit_id = ? AND date = ? AND count IS NULL AND state IS NULL AND target_override IS NULL'
       ).run(habitId, date);
     })();
   } else {
@@ -472,6 +484,24 @@ export function setState(habitId: string, date: string, state: CompletionState |
 export function deleteCompletion(habitId: string, date: string): void {
   const db = getDb();
   db.prepare('DELETE FROM completions WHERE habit_id = ? AND date = ?').run(habitId, date);
+}
+
+export function setTargetOverride(habitId: string, date: string, override: number | null): void {
+  const db = getDb();
+  if (override == null) {
+    db.transaction(() => {
+      db.prepare(
+        'UPDATE completions SET target_override = NULL WHERE habit_id = ? AND date = ?'
+      ).run(habitId, date);
+      db.prepare(
+        'DELETE FROM completions WHERE habit_id = ? AND date = ? AND count IS NULL AND state IS NULL AND target_override IS NULL'
+      ).run(habitId, date);
+    })();
+  } else {
+    db.prepare(
+      'INSERT INTO completions (habit_id, date, target_override) VALUES (?, ?, ?) ON CONFLICT(habit_id, date) DO UPDATE SET target_override = ?'
+    ).run(habitId, date, override, override);
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -16,7 +16,7 @@ export function computeDonesByHabit(
     if (!habit) continue;
     if (habit.type === 'counter') {
       const count = c.count ?? 0;
-      if (count < effectiveTarget(habit, c.date)) continue;
+      if (count < effectiveTarget(habit, c.date, c.targetOverride)) continue;
     }
     let set = map.get(c.habitId);
     if (!set) {

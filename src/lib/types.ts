@@ -36,6 +36,7 @@ export type Completion = {
   date: string;
   count?: number;
   state?: CompletionState;
+  targetOverride?: number;
 };
 
 export type Section = {

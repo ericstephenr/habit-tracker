@@ -25,6 +25,7 @@ import {
   apiToggleCompletion,
   apiSetCount,
   apiSetState,
+  apiSetTargetOverride,
   apiDeleteCompletion,
   apiCreateSection,
   apiUpdateSection,
@@ -296,14 +297,18 @@ class HabitStore {
     const idx = this.data.completions.findIndex((c) => c.habitId === habitId && c.date === date);
     const existing = idx !== -1 ? this.data.completions[idx] : undefined;
     const wasSkipped = existing?.state === 'skipped';
+    const priorOverride = existing?.targetOverride;
     const habit = this.data.habits.find((h) => h.id === habitId);
-    const target = habit?.type === 'counter' ? effectiveTarget(habit, date) : 0;
+    const target = habit?.type === 'counter' ? effectiveTarget(habit, date, priorOverride) : 0;
     const shouldUnSkip = wasSkipped && target > 0 && count >= target;
 
     if (count === 0) {
       if (existing) {
-        if (existing.state === 'skipped') {
-          this.data.completions[idx] = { habitId, date, state: 'skipped' };
+        const preserved: Completion = { habitId, date };
+        if (existing.state === 'skipped') preserved.state = 'skipped';
+        if (priorOverride != null) preserved.targetOverride = priorOverride;
+        if (preserved.state || preserved.targetOverride != null) {
+          this.data.completions[idx] = preserved;
         } else {
           this.data.completions.splice(idx, 1);
         }
@@ -311,6 +316,7 @@ class HabitStore {
     } else {
       const next: Completion = { habitId, date, count };
       if (wasSkipped && !shouldUnSkip) next.state = 'skipped';
+      if (priorOverride != null) next.targetOverride = priorOverride;
       if (existing) this.data.completions[idx] = next;
       else this.data.completions.push(next);
     }
@@ -324,6 +330,34 @@ class HabitStore {
   getCount(habitId: string, date: string): number {
     const c = this.data.completions.find((x) => x.habitId === habitId && x.date === date);
     return c?.count ?? 0;
+  }
+
+  getTargetOverride(habitId: string, date: string): number | undefined {
+    const c = this.data.completions.find((x) => x.habitId === habitId && x.date === date);
+    return c?.targetOverride;
+  }
+
+  setTargetOverride(habitId: string, date: string, override: number | null): void {
+    const idx = this.data.completions.findIndex((c) => c.habitId === habitId && c.date === date);
+    if (override == null) {
+      if (idx === -1) return;
+      const existing = this.data.completions[idx];
+      if (existing.targetOverride == null) return;
+      const next: Completion = { ...existing };
+      delete next.targetOverride;
+      if (next.count == null && next.state == null) {
+        this.data.completions.splice(idx, 1);
+      } else {
+        this.data.completions[idx] = next;
+      }
+    } else {
+      if (idx === -1) {
+        this.data.completions.push({ habitId, date, targetOverride: override });
+      } else {
+        this.data.completions[idx] = { ...this.data.completions[idx], targetOverride: override };
+      }
+    }
+    apiSetTargetOverride(habitId, date, override).catch(this.handleError);
   }
 
   isDone(habitId: string, date: string): boolean {
@@ -389,7 +423,7 @@ class HabitStore {
         this.toggleCompletion(habitId, date);
       }
     } else {
-      const t = effectiveTarget(habit, date);
+      const t = effectiveTarget(habit, date, this.getTargetOverride(habitId, date));
       if (wasSkipped) this.clearSkipped(habitId, date);
       if (this.getCount(habitId, date) < t) this.setCount(habitId, date, t);
     }

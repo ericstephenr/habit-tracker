@@ -7,6 +7,7 @@
   import { currentDate } from '$lib/currentDate.svelte';
   import StreakCorner from './StreakCorner.svelte';
   import HabitStateMenu from './HabitStateMenu.svelte';
+  import TargetOverridePopover from './TargetOverridePopover.svelte';
   import IconCheck from './icons/IconCheck.svelte';
   import IconKebab from './icons/IconKebab.svelte';
   import IconMinus from './icons/IconMinus.svelte';
@@ -25,6 +26,8 @@
   let pressed = $state(false);
   let menuOpen = $state(false);
   let menuAnchor = $state<{ x: number; y: number } | null>(null);
+  let targetPopoverOpen = $state(false);
+  let targetPopoverAnchor = $state<{ x: number; y: number } | null>(null);
   let longPressTimer: ReturnType<typeof setTimeout> | null = null;
   let longPressFired = false;
   let checkboxEl = $state<HTMLButtonElement | null>(null);
@@ -32,7 +35,11 @@
   let isFuture = $derived(date > currentDate.value);
   let done = $derived(store.isDone(habit.id, date));
   let skipped = $derived(store.isSkipped(habit.id, date));
-  let target = $derived(habit.type === 'counter' ? effectiveTarget(habit, date) : 0);
+  let overrideValue = $derived(
+    habit.type === 'counter' ? store.getTargetOverride(habit.id, date) : undefined
+  );
+  let scheduledTarget = $derived(habit.type === 'counter' ? effectiveTarget(habit, date) : 0);
+  let target = $derived(habit.type === 'counter' ? effectiveTarget(habit, date, overrideValue) : 0);
   let count = $derived(habit.type === 'counter' ? store.getCount(habit.id, date) : 0);
   let unitSuffix = $derived(
     habit.type === 'counter' && habit.counter.unit ? ` ${habit.counter.unit}` : ''
@@ -137,6 +144,13 @@
 
   function onStateSelect(next: 'incomplete' | 'complete' | 'skipped') {
     store.setCompletionState(habit.id, date, next);
+  }
+
+  function onTargetClick(e: MouseEvent) {
+    if (isFuture) return;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    targetPopoverAnchor = { x: rect.left + rect.width / 2, y: rect.bottom + 6 };
+    targetPopoverOpen = true;
   }
 
   $effect(() => {
@@ -324,7 +338,22 @@
               style="font-family: var(--font-display); font-size: var(--fs-body); font-weight: 700;
                      color: var(--ink); font-variant-numeric: tabular-nums;"
             >
-              {count}<span style="color: var(--ink-faint); font-weight: 600;">/{target}</span>
+              {count}<button
+                type="button"
+                class="target-btn"
+                onclick={onTargetClick}
+                disabled={isFuture}
+                aria-label={overrideValue != null
+                  ? `Target overridden to ${target}. Tap to edit.`
+                  : `Target ${target}. Tap to set a one-day override.`}
+                title={overrideValue != null
+                  ? `Target overridden for this day (scheduled: ${scheduledTarget})`
+                  : 'Tap to set a one-day target override'}
+                >/{target}{#if overrideValue != null}<span
+                    aria-hidden="true"
+                    class="target-override-dot">·</span
+                  >{/if}</button
+              >
             </span>
             {#if habit.counter.unit}
               <span
@@ -397,6 +426,18 @@
     {currentState}
     onSelect={onStateSelect}
   />
+
+  {#if habit.type === 'counter'}
+    <TargetOverridePopover
+      bind:open={targetPopoverOpen}
+      anchor={targetPopoverAnchor}
+      {scheduledTarget}
+      currentOverride={overrideValue}
+      unit={habit.counter.unit}
+      onSave={(v) => store.setTargetOverride(habit.id, date, v)}
+      onReset={() => store.setTargetOverride(habit.id, date, null)}
+    />
+  {/if}
 </div>
 
 <style>
@@ -438,5 +479,29 @@
     .state-caret {
       display: none;
     }
+  }
+  .target-btn {
+    display: inline;
+    background: transparent;
+    border: 0;
+    padding: 0 2px;
+    margin: 0;
+    color: var(--ink-faint);
+    font: inherit;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 120ms var(--ease-out);
+  }
+  .target-btn:hover:not(:disabled) {
+    background: var(--surface-2);
+  }
+  .target-btn:disabled {
+    cursor: not-allowed;
+  }
+  .target-override-dot {
+    margin-left: 2px;
+    color: var(--accent);
   }
 </style>
