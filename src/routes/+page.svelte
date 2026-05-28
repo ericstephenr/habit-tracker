@@ -13,7 +13,6 @@
   import TodoModal from '$lib/components/TodoModal.svelte';
   import TodoSectionHeader from '$lib/components/TodoSectionHeader.svelte';
   import TodoSectionModal from '$lib/components/TodoSectionModal.svelte';
-  import AddMenu from '$lib/components/AddMenu.svelte';
   import DayStrip from '$lib/components/DayStrip.svelte';
   import ProgressHero from '$lib/components/ProgressHero.svelte';
   import IconPlus from '$lib/components/icons/IconPlus.svelte';
@@ -38,7 +37,6 @@
 
   let todoModalOpen = $state(false);
   let editingTodo = $state<Todo | undefined>(undefined);
-  let addMenuOpen = $state(false);
 
   let todoSectionModalOpen = $state(false);
   let editingTodoSection = $state<Section | undefined>(undefined);
@@ -234,9 +232,8 @@
     todoModalOpen = true;
   }
 
-  function handleAddMenuSelect(choice: 'habit' | 'task') {
-    addMenuOpen = false;
-    if (choice === 'habit') openAdd();
+  function handleAddClick() {
+    if (activeTab === 'habits') openAdd();
     else openAddTodo();
   }
 
@@ -332,21 +329,17 @@
       <header class="top-bar" class:is-desktop={isDesktop}>
         {#if isDesktop}
           <div style="flex: 1;"></div>
-          <div style="position: relative;">
-            <button
-              type="button"
-              onclick={() => (addMenuOpen = !addMenuOpen)}
-              aria-label="Add new"
-              aria-expanded={addMenuOpen}
-              style="width: 40px; height: 40px; border: 0; border-radius: var(--r-pill);
-                   background: var(--accent); color: var(--accent-on);
-                   display: flex; align-items: center; justify-content: center;
-                   cursor: pointer; box-shadow: 0 4px 14px var(--accent-glow);"
-            >
-              <IconPlus class="h-5 w-5" />
-            </button>
-            <AddMenu bind:open={addMenuOpen} anchor="below" onSelect={handleAddMenuSelect} />
-          </div>
+          <button
+            type="button"
+            onclick={handleAddClick}
+            aria-label={activeTab === 'habits' ? 'Add habit' : 'Add task'}
+            style="width: 40px; height: 40px; border: 0; border-radius: var(--r-pill);
+                 background: var(--accent); color: var(--accent-on);
+                 display: flex; align-items: center; justify-content: center;
+                 cursor: pointer; box-shadow: 0 4px 14px var(--accent-glow);"
+          >
+            <IconPlus class="h-5 w-5" />
+          </button>
           <button
             type="button"
             onclick={() => (dataModalOpen = true)}
@@ -738,14 +731,12 @@
         <div class="fab-wrap">
           <button
             type="button"
-            onclick={() => (addMenuOpen = !addMenuOpen)}
-            aria-label="Add new"
-            aria-expanded={addMenuOpen}
+            onclick={handleAddClick}
+            aria-label={activeTab === 'habits' ? 'Add habit' : 'Add task'}
             class="fab"
           >
             <IconPlus class="h-7 w-7" />
           </button>
-          <AddMenu bind:open={addMenuOpen} anchor="above" onSelect={handleAddMenuSelect} />
         </div>
       {/if}
     </div>
