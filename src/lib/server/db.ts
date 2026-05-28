@@ -1,10 +1,16 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'fs';
-import { dirname } from 'path';
+import { dirname, join } from 'path';
 import type { AppData, Completion, CounterConfig, Habit, Section, Todo } from '../types';
 import { emptyAppData } from '../types';
 
-const DB_PATH = process.env.DATABASE_PATH || './data/habits.db';
+const DB_PATH =
+  process.env.DATABASE_PATH ||
+  join(
+    process.env.XDG_DATA_HOME || join(process.env.HOME || '/tmp', '.local', 'share'),
+    'habit-tracker',
+    'habits.db'
+  );
 
 let _db: Database.Database | null = null;
 
