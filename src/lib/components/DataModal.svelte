@@ -14,6 +14,8 @@
   import SegmentToggle from './SegmentToggle.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
   import ClearHistoryModal from './ClearHistoryModal.svelte';
+  import IconMinus from './icons/IconMinus.svelte';
+  import IconPlus from './icons/IconPlus.svelte';
 
   let { open = $bindable(false) }: { open?: boolean } = $props();
 
@@ -128,6 +130,20 @@
   async function doReset() {
     await store.resetAll();
     close();
+  }
+
+  const MAX_GRACE_DAYS = 7;
+
+  function nudgeGrace(delta: number) {
+    const current = store.data.settings.autoFail.graceDays;
+    const next = Math.min(MAX_GRACE_DAYS, Math.max(0, current + delta));
+    if (next !== current) store.setAutoFail({ graceDays: next });
+  }
+
+  function graceMeta(n: number): string {
+    if (n === 0) return 'Today stays editable; yesterday and older misses turn Failed.';
+    const days = n === 1 ? 'day' : 'days';
+    return `Today and the previous ${n} ${days} stay editable; older misses turn Failed.`;
   }
 
   const ACCENTS: Array<{ value: Accent; color: string }> = [
@@ -245,6 +261,94 @@
           ></button>
         {/each}
       </div>
+    </div>
+
+    <div style="height: 1px; background: var(--line); margin: 8px 0;"></div>
+
+    <div style="padding: 4px 0 8px;">
+      <div
+        style="font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
+               text-transform: uppercase; color: var(--ink-muted);
+               margin-bottom: 8px;"
+      >
+        Auto-fail missed habits
+      </div>
+      <p
+        style="margin: 0 0 12px; font-family: var(--font-body); font-size: 12px;
+               line-height: 1.45; color: var(--ink-faint);"
+      >
+        Mark scheduled days you didn't complete as Failed once they fall outside a grace window — so
+        old misses show clearly instead of looking unfinished.
+      </p>
+      <SegmentToggle
+        value={store.data.settings.autoFail.enabled ? 'on' : 'off'}
+        options={[
+          { value: 'on', label: 'On' },
+          { value: 'off', label: 'Off' }
+        ]}
+        onChange={(v) => store.setAutoFail({ enabled: v === 'on' })}
+        aria-label="Auto-fail missed habits"
+      />
+
+      {#if store.data.settings.autoFail.enabled}
+        {@const grace = store.data.settings.autoFail.graceDays}
+        <div
+          style="margin-top: 14px; display: flex; align-items: center;
+                 justify-content: space-between; gap: 12px;"
+        >
+          <div style="min-width: 0;">
+            <div style="font-family: var(--font-body); font-size: 14px; color: var(--ink);">
+              Grace period
+            </div>
+            <div
+              style="margin-top: 2px; font-family: var(--font-body); font-size: 12px;
+                     line-height: 1.4; color: var(--ink-faint);"
+            >
+              {graceMeta(grace)}
+            </div>
+          </div>
+          <div
+            style="display: flex; align-items: center; flex-shrink: 0;
+                   background: var(--surface-2); border-radius: 9999px; padding: 3px;"
+          >
+            <button
+              type="button"
+              onclick={() => nudgeGrace(-1)}
+              disabled={grace === 0}
+              aria-label="Decrease grace period by one day"
+              style="width: 32px; height: 32px; border: 0; padding: 0;
+                     background: transparent; border-radius: 9999px;
+                     color: var(--ink-muted); cursor: pointer;
+                     display: flex; align-items: center; justify-content: center;
+                     opacity: {grace === 0 ? 0.35 : 1};"
+            >
+              <IconMinus class="h-3.5 w-3.5" />
+            </button>
+            <span
+              aria-live="polite"
+              style="padding: 0 10px; min-width: 64px; text-align: center;
+                     font-family: var(--font-display); font-size: 14px; font-weight: 700;
+                     color: var(--ink); font-variant-numeric: tabular-nums;"
+            >
+              {grace}
+              {grace === 1 ? 'day' : 'days'}
+            </span>
+            <button
+              type="button"
+              onclick={() => nudgeGrace(1)}
+              disabled={grace === MAX_GRACE_DAYS}
+              aria-label="Increase grace period by one day"
+              style="width: 32px; height: 32px; border: 0; padding: 0;
+                     background: transparent; border-radius: 9999px;
+                     color: var(--ink-muted); cursor: pointer;
+                     display: flex; align-items: center; justify-content: center;
+                     opacity: {grace === MAX_GRACE_DAYS ? 0.35 : 1};"
+            >
+              <IconPlus class="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      {/if}
     </div>
   </div>
 </Sheet>

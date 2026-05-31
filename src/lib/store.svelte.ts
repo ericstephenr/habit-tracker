@@ -1,5 +1,14 @@
 import { SvelteSet } from 'svelte/reactivity';
-import type { AppData, Completion, CounterConfig, DayOfWeek, Habit, Section, Todo } from './types';
+import type {
+  AppData,
+  Completion,
+  CompletionState,
+  CounterConfig,
+  DayOfWeek,
+  Habit,
+  Section,
+  Todo
+} from './types';
 import { emptyAppData } from './types';
 import { newId } from './ids';
 import { effectiveTarget, normalizeDays } from './schedule';
@@ -8,6 +17,8 @@ import { STORAGE_KEY, migrate } from './storage';
 import {
   computeDonesByHabit,
   computeSkippedByHabit,
+  computeFailedByHabit,
+  computeAutoFailable,
   computeDueHabits,
   groupHabitsBySection,
   computeAllStartedHabits,
@@ -25,7 +36,9 @@ import {
   apiToggleCompletion,
   apiSetCount,
   apiSetState,
+  apiBulkSetState,
   apiSetTargetOverride,
+  apiUpdateSettings,
   apiDeleteCompletion,
   apiCreateSection,
   apiUpdateSection,
@@ -67,6 +80,8 @@ class HabitStore {
   donesByHabit = $derived.by(() => computeDonesByHabit(this.data.habits, this.data.completions));
 
   skippedByHabit = $derived.by(() => computeSkippedByHabit(this.data.completions));
+
+  failedByHabit = $derived.by(() => computeFailedByHabit(this.data.completions));
 
   dueHabits = $derived.by(() => computeDueHabits(this.data.habits, selectedDate.value));
 
@@ -296,16 +311,17 @@ class HabitStore {
     if (count < 0) count = 0;
     const idx = this.data.completions.findIndex((c) => c.habitId === habitId && c.date === date);
     const existing = idx !== -1 ? this.data.completions[idx] : undefined;
-    const wasSkipped = existing?.state === 'skipped';
+    const priorState = existing?.state;
     const priorOverride = existing?.targetOverride;
     const habit = this.data.habits.find((h) => h.id === habitId);
     const target = habit?.type === 'counter' ? effectiveTarget(habit, date, priorOverride) : 0;
-    const shouldUnSkip = wasSkipped && target > 0 && count >= target;
+    // Logging up to the target on a skipped/failed day clears that state (it's done now).
+    const shouldClearState = priorState != null && target > 0 && count >= target;
 
     if (count === 0) {
       if (existing) {
         const preserved: Completion = { habitId, date };
-        if (existing.state === 'skipped') preserved.state = 'skipped';
+        if (priorState) preserved.state = priorState;
         if (priorOverride != null) preserved.targetOverride = priorOverride;
         if (preserved.state || preserved.targetOverride != null) {
           this.data.completions[idx] = preserved;
@@ -315,14 +331,14 @@ class HabitStore {
       }
     } else {
       const next: Completion = { habitId, date, count };
-      if (wasSkipped && !shouldUnSkip) next.state = 'skipped';
+      if (priorState && !shouldClearState) next.state = priorState;
       if (priorOverride != null) next.targetOverride = priorOverride;
       if (existing) this.data.completions[idx] = next;
       else this.data.completions.push(next);
     }
 
     apiSetCount(habitId, date, count).catch(this.handleError);
-    if (shouldUnSkip) {
+    if (shouldClearState) {
       apiSetState(habitId, date, null).catch(this.handleError);
     }
   }
@@ -368,23 +384,37 @@ class HabitStore {
     return this.skippedByHabit.get(habitId)?.has(date) === true;
   }
 
-  setSkipped(habitId: string, date: string): void {
-    const idx = this.data.completions.findIndex((c) => c.habitId === habitId && c.date === date);
-    if (idx === -1) {
-      this.data.completions.push({ habitId, date, state: 'skipped' });
-    } else {
-      this.data.completions[idx] = { ...this.data.completions[idx], state: 'skipped' };
-    }
-    apiSetState(habitId, date, 'skipped').catch(this.handleError);
+  isFailed(habitId: string, date: string): boolean {
+    return this.failedByHabit.get(habitId)?.has(date) === true;
   }
 
-  clearSkipped(habitId: string, date: string): void {
+  // Stamp a completion row with a state ('skipped' | 'failed'), creating the row
+  // if needed and preserving any existing count/targetOverride.
+  private writeState(habitId: string, date: string, state: CompletionState): void {
     const idx = this.data.completions.findIndex((c) => c.habitId === habitId && c.date === date);
-    if (idx === -1 || this.data.completions[idx].state !== 'skipped') return;
+    if (idx === -1) {
+      this.data.completions.push({ habitId, date, state });
+    } else {
+      this.data.completions[idx] = { ...this.data.completions[idx], state };
+    }
+    apiSetState(habitId, date, state).catch(this.handleError);
+  }
+
+  private clearState(habitId: string, date: string): void {
+    const idx = this.data.completions.findIndex((c) => c.habitId === habitId && c.date === date);
+    if (idx === -1 || this.data.completions[idx].state == null) return;
     const next: Completion = { ...this.data.completions[idx] };
     delete next.state;
     this.data.completions[idx] = next;
     apiSetState(habitId, date, null).catch(this.handleError);
+  }
+
+  setSkipped(habitId: string, date: string): void {
+    this.writeState(habitId, date, 'skipped');
+  }
+
+  clearSkipped(habitId: string, date: string): void {
+    this.clearState(habitId, date);
   }
 
   deleteCompletion(habitId: string, date: string): void {
@@ -396,15 +426,15 @@ class HabitStore {
   setCompletionState(
     habitId: string,
     date: string,
-    next: 'incomplete' | 'complete' | 'skipped'
+    next: 'incomplete' | 'complete' | 'skipped' | 'failed'
   ): void {
     const habit = this.data.habits.find((h) => h.id === habitId);
     if (!habit) return;
-    const wasSkipped = this.isSkipped(habitId, date);
+    const hadState = this.isSkipped(habitId, date) || this.isFailed(habitId, date);
     const wasDone = this.isDone(habitId, date);
 
-    if (next === 'skipped') {
-      if (!wasSkipped) this.setSkipped(habitId, date);
+    if (next === 'skipped' || next === 'failed') {
+      this.writeState(habitId, date, next);
       return;
     }
 
@@ -416,17 +446,53 @@ class HabitStore {
 
     // next === 'complete'
     if (habit.type === 'binary') {
-      if (wasSkipped) {
-        this.clearSkipped(habitId, date);
-        // For binary habits, the row remaining after clearing skip already represents "complete".
+      if (hadState) {
+        this.clearState(habitId, date);
+        // For binary habits, the row remaining after clearing the state already represents "complete".
       } else if (!wasDone) {
         this.toggleCompletion(habitId, date);
       }
     } else {
       const t = effectiveTarget(habit, date, this.getTargetOverride(habitId, date));
-      if (wasSkipped) this.clearSkipped(habitId, date);
+      if (hadState) this.clearState(habitId, date);
       if (this.getCount(habitId, date) < t) this.setCount(habitId, date, t);
     }
+  }
+
+  setAutoFail(patch: { enabled?: boolean; graceDays?: number }): void {
+    const af = this.data.settings.autoFail;
+    if (patch.enabled !== undefined) af.enabled = patch.enabled;
+    if (patch.graceDays !== undefined) af.graceDays = patch.graceDays;
+    apiUpdateSettings(patch).catch(this.handleError);
+  }
+
+  // Flip still-Incomplete scheduled days that have fallen past the grace window to
+  // Failed. Idempotent — runs on load and on each midnight rollover. Batches the
+  // write into a single request rather than one call per day.
+  runAutoFailSweep(today: string): void {
+    const { enabled, graceDays } = this.data.settings.autoFail;
+    if (!enabled) return;
+    const targets = computeAutoFailable(
+      this.data.habits,
+      this.donesByHabit,
+      this.skippedByHabit,
+      this.failedByHabit,
+      today,
+      graceDays
+    );
+    if (targets.length === 0) return;
+
+    for (const { habitId, date } of targets) {
+      const idx = this.data.completions.findIndex((c) => c.habitId === habitId && c.date === date);
+      if (idx === -1) {
+        this.data.completions.push({ habitId, date, state: 'failed' });
+      } else {
+        this.data.completions[idx] = { ...this.data.completions[idx], state: 'failed' };
+      }
+    }
+    apiBulkSetState(targets.map((t) => ({ ...t, state: 'failed' as const }))).catch(
+      this.handleError
+    );
   }
 
   progressForDate(date: string): { done: number; total: number } {

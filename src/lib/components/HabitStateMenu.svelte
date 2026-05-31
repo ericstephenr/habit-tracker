@@ -2,8 +2,9 @@
   import { tick } from 'svelte';
   import IconCheck from './icons/IconCheck.svelte';
   import IconSkip from './icons/IconSkip.svelte';
+  import IconCross from './icons/IconCross.svelte';
 
-  type State = 'incomplete' | 'complete' | 'skipped';
+  type State = 'incomplete' | 'complete' | 'skipped' | 'failed';
 
   let {
     open = $bindable(false),
@@ -99,7 +100,7 @@
            transform-origin: {position.transformOrigin};
            transition: opacity 140ms, transform 140ms cubic-bezier(.2,1,.4,1);"
   >
-    {#each [{ key: 'incomplete' as State, label: 'Incomplete' }, { key: 'complete' as State, label: 'Complete' }, { key: 'skipped' as State, label: 'Skipped' }] as item (item.key)}
+    {#each [{ key: 'incomplete' as State, label: 'Incomplete' }, { key: 'complete' as State, label: 'Complete' }, { key: 'skipped' as State, label: 'Skipped' }, { key: 'failed' as State, label: 'Failed' }] as item (item.key)}
       {@const isCurrent = currentState === item.key}
       <button
         type="button"
@@ -129,7 +130,9 @@
             ? 'var(--accent)'
             : item.key === 'skipped'
               ? 'var(--ink-faint)'
-              : 'var(--surface-2)'};
+              : item.key === 'failed'
+                ? 'var(--danger)'
+                : 'var(--surface-2)'};
                  color: {item.key === 'incomplete' ? 'transparent' : 'var(--accent-on, white)'};
                  box-shadow: {item.key === 'incomplete'
             ? 'inset 0 0 0 1.5px var(--line-strong)'
@@ -139,6 +142,8 @@
             <IconCheck class="h-3.5 w-3.5" />
           {:else if item.key === 'skipped'}
             <IconSkip class="h-3.5 w-3.5" />
+          {:else if item.key === 'failed'}
+            <IconCross class="h-3.5 w-3.5" />
           {/if}
         </span>
         <span style="flex: 1;">{item.label}</span>

@@ -29,7 +29,7 @@ export type BinaryHabit = BaseHabit & { type: 'binary' };
 export type CounterHabit = BaseHabit & { type: 'counter'; counter: CounterConfig };
 export type Habit = BinaryHabit | CounterHabit;
 
-export type CompletionState = 'skipped';
+export type CompletionState = 'skipped' | 'failed';
 
 export type Completion = {
   habitId: string;
@@ -38,6 +38,19 @@ export type Completion = {
   state?: CompletionState;
   targetOverride?: number;
 };
+
+// App-wide settings, persisted server-side and loaded with the rest of AppData.
+export type AppSettings = {
+  // Rolling window that auto-flips still-Incomplete scheduled days to Failed.
+  // graceDays = how many past days stay reviewable; days older than the window
+  // are auto-failed at midnight rollover. Default: 1 (yesterday stays editable,
+  // the day before yesterday turns Failed).
+  autoFail: { enabled: boolean; graceDays: number };
+};
+
+export const defaultSettings = (): AppSettings => ({
+  autoFail: { enabled: true, graceDays: 1 }
+});
 
 export type Section = {
   id: string;
@@ -55,19 +68,21 @@ export type Todo = {
 };
 
 export type AppData = {
-  version: 7;
+  version: 8;
   habits: Habit[];
   completions: Completion[];
   sections: Section[];
   todos: Todo[];
   todoSections: Section[];
+  settings: AppSettings;
 };
 
 export const emptyAppData = (): AppData => ({
-  version: 7,
+  version: 8,
   habits: [],
   completions: [],
   sections: [{ id: crypto.randomUUID(), name: 'Habits', collapsed: false }],
   todos: [],
-  todoSections: [{ id: crypto.randomUUID(), name: 'Tasks', collapsed: false }]
+  todoSections: [{ id: crypto.randomUUID(), name: 'Tasks', collapsed: false }],
+  settings: defaultSettings()
 });

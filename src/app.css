@@ -69,6 +69,8 @@
 
   --danger: oklch(0.58 0.2 25);
   --danger-soft: oklch(0.95 0.04 25);
+  --danger-fill: oklch(0.965 0.035 25);
+  --danger-border: oklch(0.9 0.075 25);
 
   --warn: oklch(0.72 0.18 50);
   --warn-soft: oklch(0.95 0.05 55);
@@ -146,6 +148,8 @@ html[data-theme='dark'] {
   --ink: oklch(0.965 0.004 280);
   --ink-muted: oklch(0.72 0.014 280);
   --ink-faint: oklch(0.52 0.014 280);
+  --danger-fill: oklch(0.26 0.05 25);
+  --danger-border: oklch(0.36 0.1 25);
   --warn-soft: oklch(0.3 0.08 55);
   --caution-soft: oklch(0.28 0.06 80);
 }
@@ -292,6 +296,8 @@ textarea:focus-visible {
   --color-accent-ink: var(--accent-ink);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+  --color-danger-fill: var(--danger-fill);
+  --color-danger-border: var(--danger-border);
   --radius-xs: var(--r-xs);
   --radius-sm: var(--r-sm);
   --radius-md: var(--r-md);

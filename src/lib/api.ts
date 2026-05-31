@@ -1,4 +1,12 @@
-import type { AppData, CompletionState, Habit, Section, Todo, CounterConfig } from './types';
+import type {
+  AppData,
+  AppSettings,
+  CompletionState,
+  Habit,
+  Section,
+  Todo,
+  CounterConfig
+} from './types';
 
 async function call(url: string, method: string, body?: unknown): Promise<Response> {
   const res = await fetch(url, {
@@ -89,6 +97,22 @@ export async function apiSetTargetOverride(
   override: number | null
 ): Promise<void> {
   await call('/api/completions', 'POST', { habitId, date, targetOverride: override });
+}
+
+export async function apiBulkSetState(
+  entries: { habitId: string; date: string; state: CompletionState }[]
+): Promise<void> {
+  await call('/api/completions/bulk', 'POST', { entries });
+}
+
+// Settings
+
+export async function apiUpdateSettings(patch: {
+  enabled?: boolean;
+  graceDays?: number;
+}): Promise<AppSettings> {
+  const res = await call('/api/settings', 'POST', patch);
+  return res.json();
 }
 
 // Sections

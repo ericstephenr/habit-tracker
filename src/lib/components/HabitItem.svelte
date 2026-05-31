@@ -14,6 +14,7 @@
   import IconPlus from './icons/IconPlus.svelte';
   import IconChevron from './icons/IconChevron.svelte';
   import IconSkip from './icons/IconSkip.svelte';
+  import IconCross from './icons/IconCross.svelte';
 
   let {
     habit,
@@ -35,6 +36,7 @@
   let isFuture = $derived(date > currentDate.value);
   let done = $derived(store.isDone(habit.id, date));
   let skipped = $derived(store.isSkipped(habit.id, date));
+  let failed = $derived(store.isFailed(habit.id, date));
   let overrideValue = $derived(
     habit.type === 'counter' ? store.getTargetOverride(habit.id, date) : undefined
   );
@@ -57,14 +59,15 @@
   let fillPct = $derived(
     habit.type === 'counter' && target > 0 ? Math.min(1, count / target) * 100 : 0
   );
-  let currentState = $derived<'incomplete' | 'complete' | 'skipped'>(
-    skipped ? 'skipped' : done ? 'complete' : 'incomplete'
+  let currentState = $derived<'incomplete' | 'complete' | 'skipped' | 'failed'>(
+    failed ? 'failed' : skipped ? 'skipped' : done ? 'complete' : 'incomplete'
   );
+  let nameOpacity = $derived(inactive ? 0.5 : skipped || failed || done ? 0.55 : 1);
 
   function handleCheck() {
     if (isFuture) return;
-    if (skipped) {
-      // A click on a skipped checkbox promotes it to complete.
+    if (skipped || failed) {
+      // A click on a skipped/failed checkbox promotes it to complete.
       store.setCompletionState(habit.id, date, 'complete');
       return;
     }
@@ -142,7 +145,7 @@
     openMenuBelowCheckbox();
   }
 
-  function onStateSelect(next: 'incomplete' | 'complete' | 'skipped') {
+  function onStateSelect(next: 'incomplete' | 'complete' | 'skipped' | 'failed') {
     store.setCompletionState(habit.id, date, next);
   }
 
@@ -165,12 +168,22 @@
     class="ht-card"
     style="background: {inactive
       ? 'var(--surface-2)'
-      : done
-        ? 'var(--accent-fill)'
-        : 'var(--surface)'}; border-radius: var(--r-lg);
+      : failed
+        ? 'var(--danger-fill)'
+        : skipped
+          ? 'var(--surface-2)'
+          : done
+            ? 'var(--accent-fill)'
+            : 'var(--surface)'}; border-radius: var(--r-lg);
            border: {inactive
       ? '1.5px dashed var(--line-strong)'
-      : `1px solid ${done ? 'var(--accent-soft)' : 'var(--line)'}`};
+      : failed
+        ? '1px solid var(--danger-border)'
+        : skipped
+          ? '1px solid var(--line-strong)'
+          : done
+            ? '1px solid var(--accent-soft)'
+            : '1px solid var(--line)'};
            box-shadow: var(--shadow-1);
            overflow: hidden; position: relative;
            transition: background var(--t-normal) var(--ease-out),
@@ -195,20 +208,24 @@
           aria-pressed={done}
           aria-label={isFuture
             ? `Cannot mark ${habit.name} in the future`
-            : skipped
-              ? `${habit.name} is skipped — click to mark done, right-click for options`
-              : done
-                ? `Mark ${habit.name} not done`
-                : `Mark ${habit.name} done`}
+            : failed
+              ? `${habit.name} is failed — click to mark done, right-click for options`
+              : skipped
+                ? `${habit.name} is skipped — click to mark done, right-click for options`
+                : done
+                  ? `Mark ${habit.name} not done`
+                  : `Mark ${habit.name} done`}
           style="width: var(--card-ctrl); height: var(--card-ctrl);
                  border-radius: {habit.type === 'counter' ? '9999px' : 'var(--r-sm)'};
                  flex-shrink: 0; border: 0; padding: 0;
-                 background: {skipped
-            ? 'var(--ink-faint)'
-            : done
-              ? 'var(--accent)'
-              : 'var(--surface-2)'};
-                 color: {skipped || done ? 'var(--accent-on)' : 'transparent'};
+                 background: {failed
+            ? 'var(--danger)'
+            : skipped
+              ? 'var(--ink-faint)'
+              : done
+                ? 'var(--accent)'
+                : 'var(--surface-2)'};
+                 color: {failed || skipped || done ? 'var(--accent-on)' : 'transparent'};
                  display: flex; align-items: center; justify-content: center;
                  cursor: {isFuture ? 'not-allowed' : 'pointer'};
                  opacity: {isFuture ? 0.35 : 1};
@@ -220,7 +237,7 @@
                  transform: scale({pressed ? 0.86 : 1});
                  box-shadow: {done
             ? '0 4px 12px var(--accent-glow)'
-            : skipped
+            : skipped || failed
               ? 'none'
               : 'inset 0 0 0 1.5px var(--line-strong)'};"
         >
@@ -230,13 +247,21 @@
               style="position: absolute; left: 0; right: 0; bottom: 0;
                      height: max(6px, {fillPct}%);
                      background: var(--accent);
-                     opacity: {skipped ? 0.35 : 1};
+                     opacity: {skipped || failed ? 0.35 : 1};
                      transition: height var(--t-emphasized) var(--ease-out),
                                  opacity var(--t-normal) var(--ease-out);
                      pointer-events: none;"
             ></span>
           {/if}
-          {#if skipped}
+          {#if failed}
+            <span
+              style="position: relative; display: flex; align-items: center; justify-content: center;
+                     transform: scale(1);
+                     transition: transform 280ms cubic-bezier(.2,1.6,.4,1) 60ms;"
+            >
+              <IconCross class="h-4 w-4" />
+            </span>
+          {:else if skipped}
             <span
               style="position: relative; display: flex; align-items: center; justify-content: center;
                      transform: scale(1);
@@ -282,7 +307,7 @@
           <span
             title={habit.name}
             style="font-family: var(--font-body); font-size: var(--fs-input); font-weight: 500;
-                   color: var(--ink); opacity: {inactive ? 0.5 : skipped ? 0.55 : done ? 0.55 : 1};
+                   color: var(--ink); opacity: {nameOpacity};
                    transition: all 200ms;
                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
           >
@@ -301,7 +326,7 @@
           title={habit.name}
           style="flex: 1; min-width: 0;
                  font-family: var(--font-body); font-size: var(--fs-input); font-weight: 500;
-                 color: var(--ink); opacity: {inactive ? 0.5 : skipped ? 0.55 : done ? 0.55 : 1};
+                 color: var(--ink); opacity: {nameOpacity};
                  transition: all 200ms;
                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
         >

@@ -3,6 +3,7 @@ import { mkdirSync } from 'fs';
 import { dirname, join } from 'path';
 import type {
   AppData,
+  AppSettings,
   Completion,
   CompletionState,
   CounterConfig,
@@ -10,7 +11,7 @@ import type {
   Section,
   Todo
 } from '../types';
-import { emptyAppData } from '../types';
+import { defaultSettings, emptyAppData } from '../types';
 
 const DB_PATH =
   process.env.DATABASE_PATH ||
@@ -36,6 +37,8 @@ function getDb(): Database.Database {
   if (!cols.some((c) => c.name === 'target_override')) {
     _db.exec('ALTER TABLE completions ADD COLUMN target_override INTEGER');
   }
+  // Single-row settings table; ensure the row exists so reads/updates are simple.
+  _db.exec('INSERT OR IGNORE INTO settings (id) VALUES (1)');
   return _db;
 }
 
@@ -84,6 +87,12 @@ CREATE TABLE IF NOT EXISTS todos (
   due_date    TEXT,
   position    INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS settings (
+  id                   INTEGER PRIMARY KEY CHECK (id = 1),
+  auto_fail_enabled    INTEGER NOT NULL DEFAULT 1,
+  auto_fail_grace_days INTEGER NOT NULL DEFAULT 1
+);
 `;
 
 // ---------------------------------------------------------------------------
@@ -127,6 +136,12 @@ interface TodoRow {
   position: number;
 }
 
+interface SettingsRow {
+  id: number;
+  auto_fail_enabled: number;
+  auto_fail_grace_days: number;
+}
+
 // ---------------------------------------------------------------------------
 // Row → domain converters
 // ---------------------------------------------------------------------------
@@ -153,9 +168,19 @@ function toHabit(row: HabitRow): Habit {
 function toCompletion(row: CompletionRow): Completion {
   const c: Completion = { habitId: row.habit_id, date: row.date };
   if (row.count != null) c.count = row.count;
-  if (row.state === 'skipped') c.state = 'skipped';
+  if (row.state === 'skipped' || row.state === 'failed') c.state = row.state;
   if (row.target_override != null) c.targetOverride = row.target_override;
   return c;
+}
+
+function toSettings(row: SettingsRow | undefined): AppSettings {
+  if (!row) return defaultSettings();
+  return {
+    autoFail: {
+      enabled: row.auto_fail_enabled === 1,
+      graceDays: row.auto_fail_grace_days
+    }
+  };
 }
 
 function toTodo(row: TodoRow): Todo {
@@ -183,14 +208,18 @@ export function loadAllData(): AppData {
     .prepare('SELECT * FROM todo_sections ORDER BY position')
     .all() as SectionRow[];
   const todos = db.prepare('SELECT * FROM todos ORDER BY position').all() as TodoRow[];
+  const settingsRow = db.prepare('SELECT * FROM settings WHERE id = 1').get() as
+    | SettingsRow
+    | undefined;
 
   return {
-    version: 7,
+    version: 8,
     sections: sections.map(toSection),
     habits: habits.map(toHabit),
     completions: completions.map(toCompletion),
     todoSections: todoSections.map(toSection),
-    todos: todos.map(toTodo)
+    todos: todos.map(toTodo),
+    settings: toSettings(settingsRow)
   };
 }
 
@@ -275,6 +304,13 @@ export function importData(data: AppData): void {
         i
       );
     }
+
+    const settings = data.settings ?? defaultSettings();
+    db.prepare(
+      `INSERT INTO settings (id, auto_fail_enabled, auto_fail_grace_days) VALUES (1, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET auto_fail_enabled = excluded.auto_fail_enabled,
+                                     auto_fail_grace_days = excluded.auto_fail_grace_days`
+    ).run(settings.autoFail.enabled ? 1 : 0, settings.autoFail.graceDays);
   })();
 }
 
@@ -468,17 +504,50 @@ export function setCount(habitId: string, date: string, count: number): void {
 
 export function setState(habitId: string, date: string, state: CompletionState | null): void {
   const db = getDb();
-  if (state === 'skipped') {
+  if (state === 'skipped' || state === 'failed') {
     db.prepare(
-      `INSERT INTO completions (habit_id, date, state) VALUES (?, ?, 'skipped')
-       ON CONFLICT(habit_id, date) DO UPDATE SET state = 'skipped'`
-    ).run(habitId, date);
+      `INSERT INTO completions (habit_id, date, state) VALUES (?, ?, ?)
+       ON CONFLICT(habit_id, date) DO UPDATE SET state = excluded.state`
+    ).run(habitId, date, state);
   } else {
     db.prepare('UPDATE completions SET state = NULL WHERE habit_id = ? AND date = ?').run(
       habitId,
       date
     );
   }
+}
+
+export function bulkSetState(
+  entries: { habitId: string; date: string; state: CompletionState }[]
+): void {
+  if (entries.length === 0) return;
+  const db = getDb();
+  const stmt = db.prepare(
+    `INSERT INTO completions (habit_id, date, state) VALUES (?, ?, ?)
+     ON CONFLICT(habit_id, date) DO UPDATE SET state = excluded.state`
+  );
+  db.transaction(() => {
+    for (const e of entries) stmt.run(e.habitId, e.date, e.state);
+  })();
+}
+
+export function updateSettings(patch: { enabled?: boolean; graceDays?: number }): AppSettings {
+  const db = getDb();
+  const parts: string[] = [];
+  const params: number[] = [];
+  if (patch.enabled !== undefined) {
+    parts.push('auto_fail_enabled = ?');
+    params.push(patch.enabled ? 1 : 0);
+  }
+  if (patch.graceDays !== undefined) {
+    parts.push('auto_fail_grace_days = ?');
+    params.push(patch.graceDays);
+  }
+  if (parts.length > 0) {
+    db.prepare(`UPDATE settings SET ${parts.join(', ')} WHERE id = 1`).run(...params);
+  }
+  const row = db.prepare('SELECT * FROM settings WHERE id = 1').get() as SettingsRow | undefined;
+  return toSettings(row);
 }
 
 export function deleteCompletion(habitId: string, date: string): void {
@@ -684,5 +753,10 @@ export function resetAll(): void {
       const s = empty.todoSections[i];
       insertTodoSection.run(s.id, s.name, s.collapsed ? 1 : 0, i);
     }
+    db.prepare(
+      `INSERT INTO settings (id, auto_fail_enabled, auto_fail_grace_days) VALUES (1, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET auto_fail_enabled = excluded.auto_fail_enabled,
+                                     auto_fail_grace_days = excluded.auto_fail_grace_days`
+    ).run(empty.settings.autoFail.enabled ? 1 : 0, empty.settings.autoFail.graceDays);
   })();
 }

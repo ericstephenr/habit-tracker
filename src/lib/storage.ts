@@ -1,5 +1,6 @@
 import type {
   AppData,
+  AppSettings,
   Completion,
   CounterConfig,
   DayOfWeek,
@@ -8,11 +9,11 @@ import type {
   Section,
   Todo
 } from './types';
-import { emptyAppData } from './types';
+import { defaultSettings, emptyAppData } from './types';
 
 export const STORAGE_KEY = 'habit-tracker:v1';
 export const BACKUP_KEY = 'habit-tracker:backup';
-export const CURRENT_VERSION = 7 as const;
+export const CURRENT_VERSION = 8 as const;
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -96,6 +97,21 @@ function isTodo(t: unknown): t is Todo {
   return true;
 }
 
+function coerceSettings(s: unknown): AppSettings {
+  const base = defaultSettings();
+  if (!isPlainObject(s)) return base;
+  const af = isPlainObject(s.autoFail) ? s.autoFail : {};
+  return {
+    autoFail: {
+      enabled: typeof af.enabled === 'boolean' ? af.enabled : base.autoFail.enabled,
+      graceDays:
+        typeof af.graceDays === 'number' && Number.isInteger(af.graceDays) && af.graceDays >= 0
+          ? af.graceDays
+          : base.autoFail.graceDays
+    }
+  };
+}
+
 type VersionedData = { version: number; [k: string]: unknown };
 
 // Forward-migration ladder. Each entry takes a payload of (claimed) version N and
@@ -127,7 +143,8 @@ const migrations: Record<number, (data: VersionedData) => VersionedData> = {
     }
 
     return { ...d, version: 7, sections, habits, todoSections, todos };
-  }
+  },
+  7: (d) => ({ ...d, version: 8, settings: defaultSettings() })
 };
 
 export function migrate(parsed: unknown): AppData | null {
@@ -159,7 +176,8 @@ export function migrate(parsed: unknown): AppData | null {
     }
     return t;
   });
-  return { version: CURRENT_VERSION, habits, completions, sections, todos, todoSections };
+  const settings = coerceSettings(data.settings);
+  return { version: CURRENT_VERSION, habits, completions, sections, todos, todoSections, settings };
 }
 
 function backupRaw(raw: string): void {

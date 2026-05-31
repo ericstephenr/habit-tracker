@@ -1,7 +1,12 @@
 import type { Completion, Habit, Section, Todo } from './types';
-import { effectiveTarget, isDueOn } from './schedule';
+import { effectiveTarget, isDueOn, previousDay } from './schedule';
 
 export type TodoGroup = { section: Section; todos: Todo[] };
+
+// How many days back (ending at the grace cutoff) a single auto-fail sweep scans.
+// Bounds the work and means a sweep is idempotent without any persisted high-water
+// mark: re-running over the same window simply re-confirms already-failed days.
+export const AUTO_FAIL_CATCHUP_DAYS = 14;
 
 export function computeDonesByHabit(
   habits: Habit[],
@@ -11,7 +16,7 @@ export function computeDonesByHabit(
   for (const h of habits) byId.set(h.id, h);
   const map = new Map<string, Set<string>>();
   for (const c of completions) {
-    if (c.state === 'skipped') continue;
+    if (c.state === 'skipped' || c.state === 'failed') continue;
     const habit = byId.get(c.habitId);
     if (!habit) continue;
     if (habit.type === 'counter') {
@@ -40,6 +45,53 @@ export function computeSkippedByHabit(completions: Completion[]): Map<string, Se
     set.add(c.date);
   }
   return map;
+}
+
+export function computeFailedByHabit(completions: Completion[]): Map<string, Set<string>> {
+  const map = new Map<string, Set<string>>();
+  for (const c of completions) {
+    if (c.state !== 'failed') continue;
+    let set = map.get(c.habitId);
+    if (!set) {
+      set = new Set();
+      map.set(c.habitId, set);
+    }
+    set.add(c.date);
+  }
+  return map;
+}
+
+// Returns the scheduled, still-Incomplete (not done / skipped / failed) days that
+// should be auto-flipped to Failed. cutoff = today − (graceDays + 1): with the
+// default graceDays=1, cutoff is the day before yesterday, so yesterday stays
+// reviewable. Scans back AUTO_FAIL_CATCHUP_DAYS from the cutoff (bounded by each
+// habit's startDate) so gaps where the app wasn't opened are caught up.
+export function computeAutoFailable(
+  habits: Habit[],
+  donesByHabit: Map<string, Set<string>>,
+  skippedByHabit: Map<string, Set<string>>,
+  failedByHabit: Map<string, Set<string>>,
+  today: string,
+  graceDays: number
+): { habitId: string; date: string }[] {
+  let cutoff = today;
+  for (let i = 0; i < graceDays + 1; i++) cutoff = previousDay(cutoff);
+
+  const result: { habitId: string; date: string }[] = [];
+  for (const h of habits) {
+    const dones = donesByHabit.get(h.id);
+    const skipped = skippedByHabit.get(h.id);
+    const failed = failedByHabit.get(h.id);
+    let date = cutoff;
+    for (let i = 0; i < AUTO_FAIL_CATCHUP_DAYS; i++) {
+      if (date < h.startDate) break;
+      if (isDueOn(h, date) && !dones?.has(date) && !skipped?.has(date) && !failed?.has(date)) {
+        result.push({ habitId: h.id, date });
+      }
+      date = previousDay(date);
+    }
+  }
+  return result;
 }
 
 export function computeDueHabits(habits: Habit[], date: string): Habit[] {

@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import type { Habit, Section, Todo } from '$lib/types';
   import { store } from '$lib/store.svelte';
   import { selectedDate } from '$lib/selectedDate.svelte';
+  import { currentDate } from '$lib/currentDate.svelte';
   import { fireDayCompleteBursts } from '$lib/confetti';
   import HabitItem from '$lib/components/HabitItem.svelte';
   import TodoItem from '$lib/components/TodoItem.svelte';
@@ -292,6 +293,16 @@
       fireDayCompleteBursts();
     }
     lastComplete = { date, complete };
+  });
+
+  // ── Auto-fail rolling window ─────────────────────────────────────
+  // Re-runs on load and whenever currentDate advances (midnight rollover or
+  // focus/visibility refresh). The sweep reads & writes completions, so run it
+  // untracked to keep this effect's deps limited to today + readiness.
+  $effect(() => {
+    const today = currentDate.value;
+    if (!store.ready) return;
+    untrack(() => store.runAutoFailSweep(today));
   });
 </script>
 
