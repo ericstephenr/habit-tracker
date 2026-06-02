@@ -12,6 +12,10 @@ export type CounterConfig = {
   step: number;
   unit: string;
   perDayTargets?: Partial<Record<DayOfWeek, number>>;
+  // 'up' (default when absent) counts toward `target` as a goal: reaching it succeeds.
+  // 'down' treats `target` as a ceiling/limit — logging a count above it fails the day,
+  // and a non-breached day stays neutral until explicitly marked done.
+  direction?: 'up' | 'down';
 };
 
 type BaseHabit = {
@@ -29,7 +33,9 @@ export type BinaryHabit = BaseHabit & { type: 'binary' };
 export type CounterHabit = BaseHabit & { type: 'counter'; counter: CounterConfig };
 export type Habit = BinaryHabit | CounterHabit;
 
-export type CompletionState = 'skipped' | 'failed';
+// 'done' is an explicit manual completion. It exists for Limit habits (direction 'down'),
+// whose under-limit days are otherwise neutral and never auto-complete from their count.
+export type CompletionState = 'skipped' | 'failed' | 'done';
 
 export type Completion = {
   habitId: string;

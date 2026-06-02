@@ -1,5 +1,5 @@
 import type { Completion, Habit, Section, Todo } from './types';
-import { effectiveTarget, isDueOn, previousDay } from './schedule';
+import { effectiveTarget, isDueOn, isLimit, previousDay } from './schedule';
 
 export type TodoGroup = { section: Section; todos: Todo[] };
 
@@ -19,7 +19,10 @@ export function computeDonesByHabit(
     if (c.state === 'skipped' || c.state === 'failed') continue;
     const habit = byId.get(c.habitId);
     if (!habit) continue;
-    if (habit.type === 'counter') {
+    // An explicit manual completion ('done') counts regardless of type or count.
+    if (c.state !== 'done' && habit.type === 'counter') {
+      // Limit habits are never auto-done by their count — only via the 'done' state.
+      if (isLimit(habit)) continue;
       const count = c.count ?? 0;
       if (count < effectiveTarget(habit, c.date, c.targetOverride)) continue;
     }
@@ -47,10 +50,29 @@ export function computeSkippedByHabit(completions: Completion[]): Map<string, Se
   return map;
 }
 
-export function computeFailedByHabit(completions: Completion[]): Map<string, Set<string>> {
+export function computeFailedByHabit(
+  habits: Habit[],
+  completions: Completion[]
+): Map<string, Set<string>> {
+  const byId = new Map<string, Habit>();
+  for (const h of habits) byId.set(h.id, h);
   const map = new Map<string, Set<string>>();
   for (const c of completions) {
-    if (c.state !== 'failed') continue;
+    let failed = c.state === 'failed';
+    if (!failed && c.state == null) {
+      // Limit habits auto-fail when the logged count goes above the limit. An explicit
+      // 'done'/'skipped' state (c.state != null) overrides a breach and is skipped here.
+      const habit = byId.get(c.habitId);
+      if (
+        habit &&
+        habit.type === 'counter' &&
+        isLimit(habit) &&
+        (c.count ?? 0) > effectiveTarget(habit, c.date, c.targetOverride)
+      ) {
+        failed = true;
+      }
+    }
+    if (!failed) continue;
     let set = map.get(c.habitId);
     if (!set) {
       set = new Set();
@@ -79,6 +101,9 @@ export function computeAutoFailable(
 
   const result: { habitId: string; date: string }[] = [];
   for (const h of habits) {
+    // Limit habits never auto-fail: a non-breached day is a valid neutral rest state,
+    // and an actual breach is already failed (computed) above.
+    if (isLimit(h)) continue;
     const dones = donesByHabit.get(h.id);
     const skipped = skippedByHabit.get(h.id);
     const failed = failedByHabit.get(h.id);

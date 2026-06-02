@@ -168,7 +168,8 @@ function toHabit(row: HabitRow): Habit {
 function toCompletion(row: CompletionRow): Completion {
   const c: Completion = { habitId: row.habit_id, date: row.date };
   if (row.count != null) c.count = row.count;
-  if (row.state === 'skipped' || row.state === 'failed') c.state = row.state;
+  if (row.state === 'skipped' || row.state === 'failed' || row.state === 'done')
+    c.state = row.state;
   if (row.target_override != null) c.targetOverride = row.target_override;
   return c;
 }
@@ -504,7 +505,7 @@ export function setCount(habitId: string, date: string, count: number): void {
 
 export function setState(habitId: string, date: string, state: CompletionState | null): void {
   const db = getDb();
-  if (state === 'skipped' || state === 'failed') {
+  if (state === 'skipped' || state === 'failed' || state === 'done') {
     db.prepare(
       `INSERT INTO completions (habit_id, date, state) VALUES (?, ?, ?)
        ON CONFLICT(habit_id, date) DO UPDATE SET state = excluded.state`

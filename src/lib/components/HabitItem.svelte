@@ -3,7 +3,7 @@
   import type { Habit } from '$lib/types';
   import { store } from '$lib/store.svelte';
   import { calcStreak } from '$lib/streaks';
-  import { effectiveTarget } from '$lib/schedule';
+  import { effectiveTarget, isLimit } from '$lib/schedule';
   import { currentDate } from '$lib/currentDate.svelte';
   import StreakCorner from './StreakCorner.svelte';
   import HabitStateMenu from './HabitStateMenu.svelte';
@@ -37,6 +37,7 @@
   let done = $derived(store.isDone(habit.id, date));
   let skipped = $derived(store.isSkipped(habit.id, date));
   let failed = $derived(store.isFailed(habit.id, date));
+  let limit = $derived(isLimit(habit));
   let overrideValue = $derived(
     habit.type === 'counter' ? store.getTargetOverride(habit.id, date) : undefined
   );
@@ -73,6 +74,10 @@
     }
     if (habit.type === 'binary') {
       store.toggleCompletion(habit.id, date);
+    } else if (limit) {
+      // Limit habits never auto-complete from their count, so a tap toggles the manual
+      // "done" mark rather than setting the count to the limit (which would be a breach).
+      store.setCompletionState(habit.id, date, done ? 'incomplete' : 'complete');
     } else {
       // Counter quick-fill: tap circle to set count = target; tap again clears to 0.
       store.setCount(habit.id, date, count >= target ? 0 : target);
@@ -246,7 +251,7 @@
               aria-hidden="true"
               style="position: absolute; left: 0; right: 0; bottom: 0;
                      height: max(6px, {fillPct}%);
-                     background: var(--accent);
+                     background: {limit ? 'var(--danger)' : 'var(--accent)'};
                      opacity: {skipped || failed ? 0.35 : 1};
                      transition: height var(--t-emphasized) var(--ease-out),
                                  opacity var(--t-normal) var(--ease-out);

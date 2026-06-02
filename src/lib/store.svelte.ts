@@ -11,7 +11,7 @@ import type {
 } from './types';
 import { emptyAppData } from './types';
 import { newId } from './ids';
-import { effectiveTarget, normalizeDays } from './schedule';
+import { effectiveTarget, isLimit, normalizeDays } from './schedule';
 import { selectedDate } from './selectedDate.svelte';
 import { STORAGE_KEY, migrate } from './storage';
 import {
@@ -81,7 +81,7 @@ class HabitStore {
 
   skippedByHabit = $derived.by(() => computeSkippedByHabit(this.data.completions));
 
-  failedByHabit = $derived.by(() => computeFailedByHabit(this.data.completions));
+  failedByHabit = $derived.by(() => computeFailedByHabit(this.data.habits, this.data.completions));
 
   dueHabits = $derived.by(() => computeDueHabits(this.data.habits, selectedDate.value));
 
@@ -316,7 +316,9 @@ class HabitStore {
     const habit = this.data.habits.find((h) => h.id === habitId);
     const target = habit?.type === 'counter' ? effectiveTarget(habit, date, priorOverride) : 0;
     // Logging up to the target on a skipped/failed day clears that state (it's done now).
-    const shouldClearState = priorState != null && target > 0 && count >= target;
+    // Not for Limit habits, where reaching/exceeding the target is a breach, not a completion.
+    const shouldClearState =
+      !(habit && isLimit(habit)) && priorState != null && target > 0 && count >= target;
 
     if (count === 0) {
       if (existing) {
@@ -430,6 +432,7 @@ class HabitStore {
   ): void {
     const habit = this.data.habits.find((h) => h.id === habitId);
     if (!habit) return;
+    const limit = isLimit(habit);
     const hadState = this.isSkipped(habitId, date) || this.isFailed(habitId, date);
     const wasDone = this.isDone(habitId, date);
 
@@ -439,12 +442,22 @@ class HabitStore {
     }
 
     if (next === 'incomplete') {
+      // A Limit day keeps its logged count (a breach then recomputes); just drop any state.
+      if (limit) {
+        this.clearState(habitId, date);
+        return;
+      }
       const exists = this.data.completions.some((c) => c.habitId === habitId && c.date === date);
       if (exists) this.deleteCompletion(habitId, date);
       return;
     }
 
     // next === 'complete'
+    if (limit) {
+      // A Limit day turns green only via an explicit 'done' state; this also overrides a breach.
+      this.writeState(habitId, date, 'done');
+      return;
+    }
     if (habit.type === 'binary') {
       if (hadState) {
         this.clearState(habitId, date);

@@ -25,7 +25,7 @@
   let pendingDeleteCount = $state(0);
   let pendingNewStartDate = $state('');
 
-  let habitType = $state<'binary' | 'counter'>('binary');
+  let habitType = $state<'binary' | 'counter' | 'limit'>('binary');
   let target = $state<number | null>(null);
   let step = $state<number | null>(1);
   let unit = $state('');
@@ -48,7 +48,8 @@
       startDate = habit.startDate;
       notes = habit.notes ?? '';
       sectionId = habit.sectionId;
-      habitType = habit.type;
+      habitType =
+        habit.type === 'counter' && habit.counter.direction === 'down' ? 'limit' : habit.type;
       if (habit.type === 'counter') {
         step = habit.counter.step;
         unit = habit.counter.unit;
@@ -96,7 +97,7 @@
     confirmDeleteHabitOpen = false;
   });
 
-  function setType(t: 'binary' | 'counter') {
+  function setType(t: 'binary' | 'counter' | 'limit') {
     if (habit) return;
     habitType = t;
     interacted = false;
@@ -116,7 +117,16 @@
   }
 
   function buildCounter() {
-    return buildCounterConfig({ step, target, unit, perDayOn, perDayValues, selectedDays });
+    const counter = buildCounterConfig({
+      step,
+      target,
+      unit,
+      perDayOn,
+      perDayValues,
+      selectedDays
+    });
+    if (counter && habitType === 'limit') counter.direction = 'down';
+    return counter;
   }
 
   function close() {
@@ -168,7 +178,7 @@
         }
       }
       commitEdit(startDate);
-    } else if (habitType === 'counter') {
+    } else if (habitType === 'counter' || habitType === 'limit') {
       const counter = buildCounter();
       if (!counter) return;
       const newH = store.addHabit({
@@ -202,12 +212,13 @@
     close();
   }
 
+  // A Limit habit validates exactly like a counter (same step/target fields).
   let validation = $derived(
     validateHabitInput({
       name,
       days: selectedDays,
       startDate,
-      type: habitType,
+      type: habitType === 'binary' ? 'binary' : 'counter',
       step,
       target,
       perDayOn,
@@ -215,6 +226,8 @@
     })
   );
   let canSave = $derived(validation.valid);
+  // The counter "target" reads as a ceiling for Limit habits.
+  let targetWord = $derived(habitType === 'limit' ? 'Limit' : 'Target');
   let errorMessage = $derived(!interacted || canSave ? '' : validation.error);
 
   const inputStyle =
@@ -255,7 +268,8 @@
         value={habitType}
         options={[
           { value: 'binary', label: 'Check off' },
-          { value: 'counter', label: 'Count up' }
+          { value: 'counter', label: 'Count up' },
+          { value: 'limit', label: 'Limit' }
         ]}
         onChange={setType}
         disabled={!!habit}
@@ -267,7 +281,7 @@
       {/if}
     </Field>
 
-    {#if habitType === 'counter'}
+    {#if habitType === 'counter' || habitType === 'limit'}
       <div style="display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px;">
         <Field label="Step">
           <input
@@ -295,7 +309,7 @@
       </div>
 
       {#if !perDayOn}
-        <Field label="Target">
+        <Field label={targetWord}>
           <input
             type="number"
             min="1"
@@ -324,12 +338,12 @@
           style="font-family: var(--font-body); font-size: 14px; font-weight: 500;
                  color: var(--ink);"
         >
-          Different target per day
+          Different {targetWord.toLowerCase()} per day
         </span>
       </label>
 
       {#if perDayOn}
-        <Field label="Targets">
+        <Field label="{targetWord}s">
           <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;">
             {#each DAY_LETTERS as letter, i (i)}
               {@const day = i as DayOfWeek}

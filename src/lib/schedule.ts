@@ -46,6 +46,12 @@ export function effectiveTarget(
   return habit.counter.perDayTargets?.[weekdayOf(dateISO)] ?? habit.counter.target;
 }
 
+// A "Limit" habit: a counter whose target is a ceiling. Logging a count above the
+// effective target fails the day; staying at or below it is neutral (not auto-done).
+export function isLimit(habit: Habit): boolean {
+  return habit.type === 'counter' && habit.counter.direction === 'down';
+}
+
 export function normalizeDays(days: DayOfWeek[]): DayOfWeek[] {
   return [...new Set(days)].sort((a, b) => a - b);
 }
