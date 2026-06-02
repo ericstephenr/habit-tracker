@@ -7,6 +7,7 @@ import type {
   DayOfWeek,
   Habit,
   Note,
+  Priority,
   Section,
   Todo
 } from './types';
@@ -62,7 +63,14 @@ import {
 export type { TodoGroup } from './storeOps';
 
 export type NewHabitInput =
-  | { type: 'binary'; name: string; days: DayOfWeek[]; startDate: string; notes?: string }
+  | {
+      type: 'binary';
+      name: string;
+      days: DayOfWeek[];
+      startDate: string;
+      notes?: string;
+      priority?: Priority;
+    }
   | {
       type: 'counter';
       name: string;
@@ -70,10 +78,12 @@ export type NewHabitInput =
       startDate: string;
       counter: CounterConfig;
       notes?: string;
+      priority?: Priority;
     };
 
 export type HabitPatch = Partial<Pick<Habit, 'name' | 'schedule' | 'startDate' | 'notes'>> & {
   counter?: CounterConfig;
+  priority?: Priority | null;
 };
 
 class HabitStore {
@@ -178,7 +188,8 @@ class HabitStore {
       schedule: { type: 'weekly_days' as const, days: normalizeDays(input.days) },
       startDate: input.startDate,
       sectionId: input.sectionId || this.data.sections[0].id,
-      ...(trimmedNotes ? { notes: trimmedNotes } : {})
+      ...(trimmedNotes ? { notes: trimmedNotes } : {}),
+      ...(input.priority ? { priority: input.priority } : {})
     };
     const habit: Habit =
       input.type === 'counter'
@@ -208,6 +219,10 @@ class HabitStore {
       const trimmed = patch.notes.trim();
       if (trimmed) h.notes = trimmed;
       else delete h.notes;
+    }
+    if ('priority' in patch) {
+      if (patch.priority) h.priority = patch.priority;
+      else delete h.priority;
     }
     apiUpdateHabit(id, patch).catch(this.handleError);
     return true;

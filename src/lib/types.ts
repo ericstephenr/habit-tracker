@@ -27,7 +27,12 @@ type BaseHabit = {
   startDate: string;
   notes?: string;
   sectionId: string;
+  // Optional importance. Absent = "None" (no priority); drives the sidebar
+  // priority filter and a colored dot on the habit card.
+  priority?: Priority;
 };
+
+export type Priority = 'high' | 'med' | 'low';
 
 export type BinaryHabit = BaseHabit & { type: 'binary' };
 export type CounterHabit = BaseHabit & { type: 'counter'; counter: CounterConfig };

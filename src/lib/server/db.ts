@@ -9,6 +9,7 @@ import type {
   CounterConfig,
   Habit,
   Note,
+  Priority,
   Section,
   Todo
 } from '../types';
@@ -38,6 +39,10 @@ function getDb(): Database.Database {
   if (!cols.some((c) => c.name === 'target_override')) {
     _db.exec('ALTER TABLE completions ADD COLUMN target_override INTEGER');
   }
+  const habitCols = _db.prepare('PRAGMA table_info(habits)').all() as { name: string }[];
+  if (!habitCols.some((c) => c.name === 'priority')) {
+    _db.exec('ALTER TABLE habits ADD COLUMN priority TEXT');
+  }
   // Single-row settings table; ensure the row exists so reads/updates are simple.
   _db.exec('INSERT OR IGNORE INTO settings (id) VALUES (1)');
   return _db;
@@ -60,7 +65,8 @@ CREATE TABLE IF NOT EXISTS habits (
   notes       TEXT,
   section_id  TEXT NOT NULL REFERENCES sections(id),
   counter     TEXT,
-  position    INTEGER NOT NULL DEFAULT 0
+  position    INTEGER NOT NULL DEFAULT 0,
+  priority    TEXT
 );
 
 CREATE TABLE IF NOT EXISTS completions (
@@ -125,6 +131,7 @@ interface HabitRow {
   section_id: string;
   counter: string | null;
   position: number;
+  priority: string | null;
 }
 
 interface CompletionRow {
@@ -168,13 +175,18 @@ function toSection(row: SectionRow): Section {
 }
 
 function toHabit(row: HabitRow): Habit {
+  const priority: Priority | undefined =
+    row.priority === 'high' || row.priority === 'med' || row.priority === 'low'
+      ? row.priority
+      : undefined;
   const base = {
     id: row.id,
     name: row.name,
     schedule: JSON.parse(row.schedule),
     startDate: row.start_date,
     sectionId: row.section_id,
-    ...(row.notes ? { notes: row.notes } : {})
+    ...(row.notes ? { notes: row.notes } : {}),
+    ...(priority ? { priority } : {})
   };
   if (row.type === 'counter') {
     return { ...base, type: 'counter', counter: JSON.parse(row.counter!) as CounterConfig };
@@ -282,7 +294,7 @@ export function importData(data: AppData): void {
     }
 
     const insertHabit = db.prepare(
-      'INSERT INTO habits (id, name, type, schedule, start_date, notes, section_id, counter, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO habits (id, name, type, schedule, start_date, notes, section_id, counter, position, priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     for (let i = 0; i < data.habits.length; i++) {
       const h = data.habits[i];
@@ -295,7 +307,8 @@ export function importData(data: AppData): void {
         h.notes || null,
         h.sectionId,
         h.type === 'counter' ? JSON.stringify(h.counter) : null,
-        i
+        i,
+        h.priority ?? null
       );
     }
 
@@ -423,7 +436,7 @@ export function insertHabit(habit: Habit): void {
     db.prepare('SELECT COALESCE(MAX(position), -1) as m FROM habits').get() as { m: number }
   ).m;
   db.prepare(
-    'INSERT INTO habits (id, name, type, schedule, start_date, notes, section_id, counter, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO habits (id, name, type, schedule, start_date, notes, section_id, counter, position, priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(
     habit.id,
     habit.name,
@@ -433,7 +446,8 @@ export function insertHabit(habit: Habit): void {
     habit.notes || null,
     habit.sectionId,
     habit.type === 'counter' ? JSON.stringify(habit.counter) : null,
-    maxPos + 1
+    maxPos + 1,
+    habit.priority ?? null
   );
 }
 
@@ -445,6 +459,7 @@ export function updateHabit(
     startDate?: string;
     notes?: string;
     counter?: CounterConfig;
+    priority?: Priority | null;
   }
 ): boolean {
   const db = getDb();
@@ -474,6 +489,10 @@ export function updateHabit(
     if (patch.counter !== undefined) {
       parts.push('counter = ?');
       params.push(JSON.stringify(patch.counter));
+    }
+    if ('priority' in patch) {
+      parts.push('priority = ?');
+      params.push(patch.priority ?? null);
     }
     if (parts.length > 0) {
       params.push(id);

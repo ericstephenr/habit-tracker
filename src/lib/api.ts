@@ -4,6 +4,7 @@ import type {
   CompletionState,
   Habit,
   Note,
+  Priority,
   Section,
   Todo,
   CounterConfig
@@ -55,6 +56,7 @@ export async function apiUpdateHabit(
     startDate?: string;
     notes?: string;
     counter?: CounterConfig;
+    priority?: Priority | null;
   }
 ): Promise<void> {
   await call(`/api/habits/${id}`, 'PATCH', patch);

@@ -64,6 +64,15 @@
     failed ? 'failed' : skipped ? 'skipped' : done ? 'complete' : 'incomplete'
   );
   let nameOpacity = $derived(inactive ? 0.5 : skipped || failed || done ? 0.55 : 1);
+  let priorityMeta = $derived(
+    habit.priority === 'high'
+      ? { color: 'var(--danger)', label: 'High' }
+      : habit.priority === 'med'
+        ? { color: 'var(--warn)', label: 'Med' }
+        : habit.priority === 'low'
+          ? { color: 'var(--caution)', label: 'Low' }
+          : null
+  );
 
   function handleCheck() {
     if (isFuture) return;
@@ -409,6 +418,17 @@
             <IconPlus class="h-3.5 w-3.5" />
           </button>
         </div>
+      {/if}
+
+      {#if priorityMeta}
+        <span
+          role="img"
+          aria-label={`${priorityMeta.label} priority`}
+          title={`${priorityMeta.label} priority`}
+          style="width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+                 background: {priorityMeta.color}; opacity: {nameOpacity};
+                 transition: opacity 200ms;"
+        ></span>
       {/if}
 
       <!-- Edit grip (also drag handle via SortableJS delay-on-touch) -->

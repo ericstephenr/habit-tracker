@@ -5,6 +5,7 @@
   import { store } from '$lib/store.svelte';
   import { selectedDate } from '$lib/selectedDate.svelte';
   import { currentDate } from '$lib/currentDate.svelte';
+  import { priorityFilter } from '$lib/priorityFilter.svelte';
   import { fireDayCompleteBursts } from '$lib/confetti';
   import HabitItem from '$lib/components/HabitItem.svelte';
   import TodoItem from '$lib/components/TodoItem.svelte';
@@ -125,7 +126,15 @@
     for (const section of store.data.sections) {
       const ul = sectionUlMap.get(section.id);
       if (ul) {
-        groups.push({ sectionId: section.id, habitIds: readIds(ul) });
+        // The DOM only holds habits currently passing the priority filter. Append any
+        // filtered-out habits for this section (in stored order) so a reorder while a
+        // filter is active never drops them from their section.
+        const domIds = readIds(ul);
+        const domSet = new Set(domIds);
+        const hidden = store.data.habits
+          .filter((h) => h.sectionId === section.id && !domSet.has(h.id))
+          .map((h) => h.id);
+        groups.push({ sectionId: section.id, habitIds: [...domIds, ...hidden] });
       } else {
         groups.push({
           sectionId: section.id,
@@ -295,6 +304,18 @@
   let hasStructure = $derived(store.hasAnyHabit);
   let activeGroups = $derived(showAll ? store.allStartedGroups : store.dueGroups);
 
+  // The sidebar priority filter applied as a render-only pass that keeps the group
+  // (section) structure intact. The allVisible fast-path means zero work when nothing
+  // is filtered, so `visibleGroups === activeGroups` in the common case.
+  let visibleGroups = $derived(
+    priorityFilter.allVisible
+      ? activeGroups
+      : activeGroups.map((g) => ({
+          ...g,
+          habits: g.habits.filter((h) => priorityFilter.isShown(h))
+        }))
+  );
+
   function isInactive(habit: Habit): boolean {
     return showAll && !store.dueHabitIds.has(habit.id);
   }
@@ -449,8 +470,9 @@
                 {/if}
 
                 <div bind:this={sectionsContainerRef}>
-                  {#each activeGroups as group (group.section.id)}
-                    {@const counts = store.sectionProgressFor(group.habits)}
+                  {#each visibleGroups as group (group.section.id)}
+                    {@const fullGroup = activeGroups.find((g) => g.section.id === group.section.id)}
+                    {@const counts = store.sectionProgressFor(fullGroup?.habits ?? group.habits)}
                     <section data-section-id={group.section.id} style="margin-top: 14px;">
                       <SectionHeader
                         section={group.section}
@@ -485,7 +507,7 @@
                               </li>
                             {/each}
                           </ul>
-                          {#if group.habits.length === 0}
+                          {#if group.habits.length === 0 && priorityFilter.allVisible}
                             <p
                               style="text-align: center; color: var(--ink-faint);
                                  font-size: var(--fs-meta); padding: 12px 0;"

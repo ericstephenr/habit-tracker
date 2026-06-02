@@ -26,6 +26,7 @@
   let pendingNewStartDate = $state('');
 
   let habitType = $state<'binary' | 'counter' | 'limit'>('binary');
+  let priority = $state<'none' | 'high' | 'med' | 'low'>('none');
   let target = $state<number | null>(null);
   let step = $state<number | null>(1);
   let unit = $state('');
@@ -48,6 +49,7 @@
       startDate = habit.startDate;
       notes = habit.notes ?? '';
       sectionId = habit.sectionId;
+      priority = habit.priority ?? 'none';
       habitType =
         habit.type === 'counter' && habit.counter.direction === 'down' ? 'limit' : habit.type;
       if (habit.type === 'counter') {
@@ -84,6 +86,7 @@
       startDate = selectedDate.value;
       notes = '';
       sectionId = store.data.sections[0]?.id ?? '';
+      priority = 'none';
       habitType = 'binary';
       target = null;
       step = 1;
@@ -143,7 +146,8 @@
       name: name.trim(),
       schedule: { type: 'weekly_days', days: normalizeDays(selectedDays) },
       startDate: newStartDate,
-      notes
+      notes,
+      priority: priority === 'none' ? null : priority
     };
     if (habit.type === 'counter') {
       const counter = buildCounter();
@@ -187,7 +191,8 @@
         days: selectedDays,
         startDate,
         counter,
-        notes
+        notes,
+        priority: priority === 'none' ? undefined : priority
       });
       applySection(newH);
       store.replaceAll(store.data);
@@ -198,7 +203,8 @@
         name: trimmed,
         days: selectedDays,
         startDate,
-        notes
+        notes,
+        priority: priority === 'none' ? undefined : priority
       });
       applySection(newH);
       store.replaceAll(store.data);
@@ -279,6 +285,23 @@
           Habit type can't be changed after creation.
         </p>
       {/if}
+    </Field>
+
+    <Field label="Priority">
+      <SegmentToggle
+        value={priority}
+        options={[
+          { value: 'none', label: 'None' },
+          { value: 'low', label: 'Low' },
+          { value: 'med', label: 'Med' },
+          { value: 'high', label: 'High' }
+        ]}
+        onChange={(p) => {
+          priority = p;
+          interacted = true;
+        }}
+        aria-label="Priority"
+      />
     </Field>
 
     {#if habitType === 'counter' || habitType === 'limit'}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { store } from '$lib/store.svelte';
   import { TABS, type Tab } from '$lib/tabs';
+  import { priorityFilter, type PriorityBucket } from '$lib/priorityFilter.svelte';
   import IconChevron from './icons/IconChevron.svelte';
 
   let {
@@ -31,6 +32,13 @@
   }
 
   const navItems = TABS;
+
+  const PRIORITY_FILTERS: { bucket: PriorityBucket; label: string; color: string }[] = [
+    { bucket: 'high', label: 'High', color: 'var(--danger)' },
+    { bucket: 'med', label: 'Med', color: 'var(--warn)' },
+    { bucket: 'low', label: 'Low', color: 'var(--caution)' },
+    { bucket: 'none', label: 'None', color: 'var(--ink-faint)' }
+  ];
 
   let sidebarSections = $derived.by(() => {
     if (activeTab === 'habits') {
@@ -168,6 +176,33 @@
             </span>
           {/if}
         </div>
+      {/each}
+    </div>
+  {/if}
+
+  <!-- Priority filter (habits only) -->
+  {#if !collapsed && activeTab === 'habits'}
+    <div class="priority-list">
+      <div class="section-list-heading">Priority</div>
+      {#each PRIORITY_FILTERS as p (p.bucket)}
+        {@const shown = priorityFilter.visible[p.bucket]}
+        <button
+          type="button"
+          class="priority-row"
+          class:off={!shown}
+          onclick={() => priorityFilter.toggle(p.bucket)}
+          oncontextmenu={(e) => {
+            e.preventDefault();
+            priorityFilter.solo(p.bucket);
+          }}
+          aria-pressed={shown}
+          title={`${shown ? 'Hide' : 'Show'} ${p.label} priority · right-click to solo`}
+        >
+          <span class="priority-dot-slot">
+            <span class="priority-dot" style="background: {p.color};"></span>
+          </span>
+          <span class="priority-label">{p.label}</span>
+        </button>
       {/each}
     </div>
   {/if}
@@ -311,6 +346,72 @@
     text-transform: uppercase;
     color: var(--ink-faint);
     padding: 0 8px 6px;
+  }
+
+  .priority-list {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .priority-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-height: 30px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--ink-muted);
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.1px;
+    text-align: left;
+    padding: 0;
+    cursor: pointer;
+    transition:
+      background var(--t-quick) var(--ease-out),
+      color var(--t-quick) var(--ease-out),
+      opacity var(--t-quick) var(--ease-out);
+  }
+
+  .priority-row:hover {
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+
+  .priority-row.off {
+    opacity: 0.45;
+  }
+
+  .priority-dot-slot {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .priority-label {
+    flex: 1;
+    min-width: 0;
+    padding: 4px 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .priority-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
   }
 
   .section-row {
