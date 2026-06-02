@@ -83,12 +83,14 @@
     confirmBody =
       `Replace your ${pluralize(cur.habits.length, 'habit')}, ` +
       `${pluralize(cur.completions.length, 'completion')}, ` +
-      `${pluralize(cur.sections.length, 'section')} and ` +
-      `${pluralize(cur.todos.length, 'task')} with ` +
+      `${pluralize(cur.sections.length, 'section')}, ` +
+      `${pluralize(cur.todos.length, 'task')} and ` +
+      `${pluralize(cur.notes.length, 'note')} with ` +
       `${pluralize(nxt.habits.length, 'habit')}, ` +
       `${pluralize(nxt.completions.length, 'completion')}, ` +
-      `${pluralize(nxt.sections.length, 'section')} and ` +
-      `${pluralize(nxt.todos.length, 'task')} from the file? This cannot be undone.`;
+      `${pluralize(nxt.sections.length, 'section')}, ` +
+      `${pluralize(nxt.todos.length, 'task')} and ` +
+      `${pluralize(nxt.notes.length, 'note')} from the file? This cannot be undone.`;
     confirmImportOpen = true;
   }
 
@@ -114,8 +116,9 @@
     confirmBody =
       `Restore ${pluralize(nxt.habits.length, 'habit')}, ` +
       `${pluralize(nxt.completions.length, 'completion')}, ` +
-      `${pluralize(nxt.sections.length, 'section')} and ` +
-      `${pluralize(nxt.todos.length, 'task')} from the browser backup? ` +
+      `${pluralize(nxt.sections.length, 'section')}, ` +
+      `${pluralize(nxt.todos.length, 'task')} and ` +
+      `${pluralize(nxt.notes.length, 'note')} from the browser backup? ` +
       `Your current ${pluralize(cur.habits.length, 'habit')} and ` +
       `${pluralize(cur.todos.length, 'task')} will be replaced.`;
     confirmImportOpen = true;
@@ -367,7 +370,7 @@
 <ConfirmDialog
   bind:open={confirmResetOpen}
   title="Reset all data?"
-  body="This permanently deletes all habits, sections, tasks and completion history. Export a backup first if you want to keep anything."
+  body="This permanently deletes all habits, sections, tasks, notes and completion history. Export a backup first if you want to keep anything."
   confirmLabel="Reset everything"
   danger
   onConfirm={doReset}

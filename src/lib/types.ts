@@ -73,22 +73,33 @@ export type Todo = {
   dueDate?: string;
 };
 
+// Standalone note-taking, separate from a habit's optional `notes` metadata.
+export type Note = {
+  id: string;
+  title: string; // may be empty → shown as "Untitled"
+  body: string;
+  createdAt: string; // ISO timestamp
+  updatedAt: string; // ISO timestamp; drives sort order (newest-edited first)
+};
+
 export type AppData = {
-  version: 8;
+  version: 9;
   habits: Habit[];
   completions: Completion[];
   sections: Section[];
   todos: Todo[];
   todoSections: Section[];
+  notes: Note[];
   settings: AppSettings;
 };
 
 export const emptyAppData = (): AppData => ({
-  version: 8,
+  version: 9,
   habits: [],
   completions: [],
   sections: [{ id: crypto.randomUUID(), name: 'Habits', collapsed: false }],
   todos: [],
   todoSections: [{ id: crypto.randomUUID(), name: 'Tasks', collapsed: false }],
+  notes: [],
   settings: defaultSettings()
 });

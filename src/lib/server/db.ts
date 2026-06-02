@@ -8,6 +8,7 @@ import type {
   CompletionState,
   CounterConfig,
   Habit,
+  Note,
   Section,
   Todo
 } from '../types';
@@ -93,6 +94,14 @@ CREATE TABLE IF NOT EXISTS settings (
   auto_fail_enabled    INTEGER NOT NULL DEFAULT 1,
   auto_fail_grace_days INTEGER NOT NULL DEFAULT 1
 );
+
+CREATE TABLE IF NOT EXISTS notes (
+  id         TEXT PRIMARY KEY,
+  title      TEXT NOT NULL DEFAULT '',
+  body       TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 `;
 
 // ---------------------------------------------------------------------------
@@ -140,6 +149,14 @@ interface SettingsRow {
   id: number;
   auto_fail_enabled: number;
   auto_fail_grace_days: number;
+}
+
+interface NoteRow {
+  id: string;
+  title: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -196,6 +213,16 @@ function toTodo(row: TodoRow): Todo {
   return t;
 }
 
+function toNote(row: NoteRow): Note {
+  return {
+    id: row.id,
+    title: row.title,
+    body: row.body,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Full load
 // ---------------------------------------------------------------------------
@@ -209,17 +236,19 @@ export function loadAllData(): AppData {
     .prepare('SELECT * FROM todo_sections ORDER BY position')
     .all() as SectionRow[];
   const todos = db.prepare('SELECT * FROM todos ORDER BY position').all() as TodoRow[];
+  const notes = db.prepare('SELECT * FROM notes ORDER BY updated_at DESC').all() as NoteRow[];
   const settingsRow = db.prepare('SELECT * FROM settings WHERE id = 1').get() as
     | SettingsRow
     | undefined;
 
   return {
-    version: 8,
+    version: 9,
     sections: sections.map(toSection),
     habits: habits.map(toHabit),
     completions: completions.map(toCompletion),
     todoSections: todoSections.map(toSection),
     todos: todos.map(toTodo),
+    notes: notes.map(toNote),
     settings: toSettings(settingsRow)
   };
 }
@@ -242,6 +271,7 @@ export function importData(data: AppData): void {
     db.exec('DELETE FROM sections');
     db.exec('DELETE FROM todos');
     db.exec('DELETE FROM todo_sections');
+    db.exec('DELETE FROM notes');
 
     const insertSection = db.prepare(
       'INSERT INTO sections (id, name, collapsed, position) VALUES (?, ?, ?, ?)'
@@ -304,6 +334,13 @@ export function importData(data: AppData): void {
         t.dueDate || null,
         i
       );
+    }
+
+    const insertNote = db.prepare(
+      'INSERT INTO notes (id, title, body, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
+    );
+    for (const n of data.notes ?? []) {
+      insertNote.run(n.id, n.title, n.body, n.createdAt, n.updatedAt);
     }
 
     const settings = data.settings ?? defaultSettings();
@@ -720,6 +757,48 @@ export function commitTodoLayout(
 }
 
 // ---------------------------------------------------------------------------
+// Notes (standalone, flat list)
+// ---------------------------------------------------------------------------
+
+export function insertNote(note: Note): void {
+  const db = getDb();
+  db.prepare(
+    'INSERT INTO notes (id, title, body, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
+  ).run(note.id, note.title, note.body, note.createdAt, note.updatedAt);
+}
+
+export function updateNote(
+  id: string,
+  patch: { title?: string; body?: string; updatedAt?: string }
+): boolean {
+  const db = getDb();
+  const parts: string[] = [];
+  const params: (string | number | null)[] = [];
+  if (patch.title !== undefined) {
+    parts.push('title = ?');
+    params.push(patch.title);
+  }
+  if (patch.body !== undefined) {
+    parts.push('body = ?');
+    params.push(patch.body);
+  }
+  if (patch.updatedAt !== undefined) {
+    parts.push('updated_at = ?');
+    params.push(patch.updatedAt);
+  }
+  if (parts.length === 0) return false;
+  params.push(id);
+  const result = db.prepare(`UPDATE notes SET ${parts.join(', ')} WHERE id = ?`).run(...params);
+  return result.changes > 0;
+}
+
+export function deleteNote(id: string): boolean {
+  const db = getDb();
+  const result = db.prepare('DELETE FROM notes WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
+// ---------------------------------------------------------------------------
 // Data management
 // ---------------------------------------------------------------------------
 
@@ -739,6 +818,7 @@ export function resetAll(): void {
     db.exec('DELETE FROM sections');
     db.exec('DELETE FROM todos');
     db.exec('DELETE FROM todo_sections');
+    db.exec('DELETE FROM notes');
     const empty = emptyAppData();
     const insertSection = db.prepare(
       'INSERT INTO sections (id, name, collapsed, position) VALUES (?, ?, ?, ?)'

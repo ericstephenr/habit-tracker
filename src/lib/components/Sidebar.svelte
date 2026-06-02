@@ -1,8 +1,7 @@
 <script lang="ts">
   import { store } from '$lib/store.svelte';
+  import { TABS, type Tab } from '$lib/tabs';
   import IconChevron from './icons/IconChevron.svelte';
-
-  type Tab = 'habits' | 'todos';
 
   let {
     activeTab,
@@ -31,10 +30,7 @@
     onTabChange(tab);
   }
 
-  const navItems: Array<{ id: Tab; label: string }> = [
-    { id: 'habits', label: 'Habits' },
-    { id: 'todos', label: 'Tasks' }
-  ];
+  const navItems = TABS;
 
   let sidebarSections = $derived.by(() => {
     if (activeTab === 'habits') {
@@ -45,7 +41,11 @@
         return { ...s, done: progress.done, total: progress.total };
       });
     }
-    return store.data.todoSections.map((s) => ({ ...s, done: 0, total: 0 }));
+    if (activeTab === 'todos') {
+      return store.data.todoSections.map((s) => ({ ...s, done: 0, total: 0 }));
+    }
+    // Notes are a flat list — no section quick-jumps.
+    return [];
   });
 
   function toggleSectionCollapsed(id: string, e: MouseEvent) {
@@ -101,7 +101,7 @@
               <rect x="3" y="3" width="14" height="14" rx="3" />
               <path d="M6.5 10.5L8.5 12.5L13.5 7.5" />
             </svg>
-          {:else}
+          {:else if item.id === 'todos'}
             <svg
               width="20"
               height="20"
@@ -116,6 +116,20 @@
               <circle cx="4.5" cy="6" r="0.8" fill="currentColor" stroke="none" />
               <circle cx="4.5" cy="10" r="0.8" fill="currentColor" stroke="none" />
               <circle cx="4.5" cy="14" r="0.8" fill="currentColor" stroke="none" />
+            </svg>
+          {:else}
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="4" y="3" width="12" height="14" rx="2.5" />
+              <path d="M7 7.5h6M7 10.5h6M7 13.5h3.5" />
             </svg>
           {/if}
         </span>

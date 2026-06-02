@@ -6,6 +6,7 @@ import type {
   CounterConfig,
   DayOfWeek,
   Habit,
+  Note,
   Section,
   Todo
 } from './types';
@@ -51,6 +52,9 @@ import {
   apiCreateTodoSection,
   apiUpdateTodoSection,
   apiDeleteTodoSection,
+  apiCreateNote,
+  apiUpdateNote,
+  apiDeleteNote,
   apiImportData,
   apiResetAll,
   apiClearHistoryBefore
@@ -112,6 +116,11 @@ class HabitStore {
   progressPct = $derived(computeProgressPct(this.doneCount, this.totalCount));
 
   hasAnyHabit = $derived(this.data.habits.length > 0);
+
+  // Notes, newest-edited first (list reads this rather than data.notes directly).
+  notes = $derived.by(() =>
+    [...this.data.notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  );
 
   private handleError = (e: unknown): void => {
     console.error('Sync error:', e);
@@ -642,6 +651,33 @@ class HabitStore {
       if (t.sectionId === id) t.sectionId = fallback;
     }
     apiDeleteTodoSection(id).catch(this.handleError);
+    return true;
+  }
+
+  // ── Notes ────────────────────────────────────────────────────────
+  addNote(): Note {
+    const now = new Date().toISOString();
+    const note: Note = { id: newId(), title: '', body: '', createdAt: now, updatedAt: now };
+    this.data.notes.push(note);
+    apiCreateNote(note).catch(this.handleError);
+    return note;
+  }
+
+  updateNote(id: string, patch: { title?: string; body?: string }): boolean {
+    const n = this.data.notes.find((x) => x.id === id);
+    if (!n) return false;
+    if (patch.title !== undefined) n.title = patch.title;
+    if (patch.body !== undefined) n.body = patch.body;
+    n.updatedAt = new Date().toISOString();
+    apiUpdateNote(id, { ...patch, updatedAt: n.updatedAt }).catch(this.handleError);
+    return true;
+  }
+
+  deleteNote(id: string): boolean {
+    const idx = this.data.notes.findIndex((n) => n.id === id);
+    if (idx === -1) return false;
+    this.data.notes.splice(idx, 1);
+    apiDeleteNote(id).catch(this.handleError);
     return true;
   }
 

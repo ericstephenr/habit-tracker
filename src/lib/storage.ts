@@ -5,6 +5,7 @@ import type {
   CounterConfig,
   DayOfWeek,
   Habit,
+  Note,
   Schedule,
   Section,
   Todo
@@ -13,7 +14,7 @@ import { defaultSettings, emptyAppData } from './types';
 
 export const STORAGE_KEY = 'habit-tracker:v1';
 export const BACKUP_KEY = 'habit-tracker:backup';
-export const CURRENT_VERSION = 8 as const;
+export const CURRENT_VERSION = 9 as const;
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -97,6 +98,18 @@ function isTodo(t: unknown): t is Todo {
   return true;
 }
 
+function isNote(n: unknown): n is Partial<Note> & { id: string } {
+  if (!isPlainObject(n)) return false;
+  if (typeof n.id !== 'string' || n.id.length === 0) return false;
+  if ('title' in n && n.title !== undefined && typeof n.title !== 'string') return false;
+  if ('body' in n && n.body !== undefined && typeof n.body !== 'string') return false;
+  if ('createdAt' in n && n.createdAt !== undefined && typeof n.createdAt !== 'string')
+    return false;
+  if ('updatedAt' in n && n.updatedAt !== undefined && typeof n.updatedAt !== 'string')
+    return false;
+  return true;
+}
+
 function coerceSettings(s: unknown): AppSettings {
   const base = defaultSettings();
   if (!isPlainObject(s)) return base;
@@ -144,7 +157,8 @@ const migrations: Record<number, (data: VersionedData) => VersionedData> = {
 
     return { ...d, version: 7, sections, habits, todoSections, todos };
   },
-  7: (d) => ({ ...d, version: 8, settings: defaultSettings() })
+  7: (d) => ({ ...d, version: 8, settings: defaultSettings() }),
+  8: (d) => ({ ...d, version: 9, notes: [] })
 };
 
 export function migrate(parsed: unknown): AppData | null {
@@ -176,8 +190,25 @@ export function migrate(parsed: unknown): AppData | null {
     }
     return t;
   });
+  const now = new Date().toISOString();
+  const notes: Note[] = (Array.isArray(data.notes) ? data.notes.filter(isNote) : []).map((n) => ({
+    id: n.id,
+    title: n.title ?? '',
+    body: n.body ?? '',
+    createdAt: typeof n.createdAt === 'string' ? n.createdAt : now,
+    updatedAt: typeof n.updatedAt === 'string' ? n.updatedAt : now
+  }));
   const settings = coerceSettings(data.settings);
-  return { version: CURRENT_VERSION, habits, completions, sections, todos, todoSections, settings };
+  return {
+    version: CURRENT_VERSION,
+    habits,
+    completions,
+    sections,
+    todos,
+    todoSections,
+    notes,
+    settings
+  };
 }
 
 function backupRaw(raw: string): void {

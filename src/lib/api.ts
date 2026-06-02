@@ -3,6 +3,7 @@ import type {
   AppSettings,
   CompletionState,
   Habit,
+  Note,
   Section,
   Todo,
   CounterConfig
@@ -181,4 +182,21 @@ export async function apiUpdateTodoSection(
 
 export async function apiDeleteTodoSection(id: string): Promise<void> {
   await call(`/api/todo-sections/${id}`, 'DELETE');
+}
+
+// Notes
+
+export async function apiCreateNote(note: Note): Promise<void> {
+  await call('/api/notes', 'POST', note);
+}
+
+export async function apiUpdateNote(
+  id: string,
+  patch: { title?: string; body?: string; updatedAt?: string }
+): Promise<void> {
+  await call(`/api/notes/${id}`, 'PATCH', patch);
+}
+
+export async function apiDeleteNote(id: string): Promise<void> {
+  await call(`/api/notes/${id}`, 'DELETE');
 }

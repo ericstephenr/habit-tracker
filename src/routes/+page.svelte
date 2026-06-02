@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import type { Habit, Section, Todo } from '$lib/types';
+  import { type Tab } from '$lib/tabs';
   import { store } from '$lib/store.svelte';
   import { selectedDate } from '$lib/selectedDate.svelte';
   import { currentDate } from '$lib/currentDate.svelte';
@@ -19,6 +20,9 @@
   import IconPlus from '$lib/components/icons/IconPlus.svelte';
   import IconGear from '$lib/components/icons/IconGear.svelte';
   import Sidebar from '$lib/components/Sidebar.svelte';
+  import MobileTabMenu from '$lib/components/MobileTabMenu.svelte';
+  import NoteItem from '$lib/components/NoteItem.svelte';
+  import NoteEditor from '$lib/components/NoteEditor.svelte';
   import Sortable from 'sortablejs';
   import { SvelteMap } from 'svelte/reactivity';
 
@@ -26,8 +30,19 @@
     store.init();
   });
 
-  let activeTab = $state<'habits' | 'todos'>('habits');
+  let activeTab = $state<Tab>('habits');
   let showAll = $state(false);
+
+  // Notes: which note (if any) is open in the full-pane editor.
+  let editingNoteId = $state<string | null>(null);
+  let freshNoteId = $state<string | null>(null); // tracks a just-created note for empty-discard
+  let openNote = $derived(
+    editingNoteId ? (store.data.notes.find((n) => n.id === editingNoteId) ?? null) : null
+  );
+  // Leaving the Notes tab closes the editor (its unmount flushes any pending save).
+  $effect(() => {
+    if (activeTab !== 'notes') editingNoteId = null;
+  });
 
   let modalOpen = $state(false);
   let dataModalOpen = $state(false);
@@ -205,7 +220,9 @@
     return () => inst.destroy();
   });
 
-  let pageTitle = $derived(activeTab === 'habits' ? 'Habits' : 'Tasks');
+  let pageTitle = $derived(
+    activeTab === 'habits' ? 'Habits' : activeTab === 'todos' ? 'Tasks' : 'Notes'
+  );
 
   function scrollToSection(sectionId: string) {
     const attr = activeTab === 'habits' ? 'data-section-id' : 'data-todo-section-id';
@@ -233,9 +250,16 @@
     todoModalOpen = true;
   }
 
+  function openAddNote() {
+    const n = store.addNote();
+    freshNoteId = n.id;
+    editingNoteId = n.id;
+  }
+
   function handleAddClick() {
     if (activeTab === 'habits') openAdd();
-    else openAddTodo();
+    else if (activeTab === 'todos') openAddTodo();
+    else openAddNote();
   }
 
   function openEdit(h: Habit) {
@@ -343,7 +367,11 @@
           <button
             type="button"
             onclick={handleAddClick}
-            aria-label={activeTab === 'habits' ? 'Add habit' : 'Add task'}
+            aria-label={activeTab === 'habits'
+              ? 'Add habit'
+              : activeTab === 'todos'
+                ? 'Add task'
+                : 'New note'}
             style="width: 40px; height: 40px; border: 0; border-radius: var(--r-pill);
                  background: var(--accent); color: var(--accent-on);
                  display: flex; align-items: center; justify-content: center;
@@ -365,29 +393,7 @@
             <IconGear class="h-[18px] w-[18px]" />
           </button>
         {:else}
-          <button
-            type="button"
-            onclick={() => (activeTab = activeTab === 'habits' ? 'todos' : 'habits')}
-            aria-label={`Currently on ${activeTab === 'habits' ? 'Habits' : 'Tasks'} — tap to switch`}
-            style="display: flex; background: var(--surface-2);
-                 border-radius: 99px; padding: 4px; gap: 2px;
-                 border: 0; cursor: pointer;"
-          >
-            {#each [{ value: 'habits' as const, label: 'Habits' }, { value: 'todos' as const, label: 'Tasks' }] as opt (opt.value)}
-              {@const active = opt.value === activeTab}
-              <span
-                style="padding: 10px 18px; border-radius: 99px;
-                     pointer-events: none;
-                     background: {active ? 'var(--surface)' : 'transparent'};
-                     color: {active ? 'var(--ink)' : 'var(--ink-muted)'};
-                     font-family: var(--font-display); font-size: 14px; font-weight: 600;
-                     box-shadow: {active ? '0 2px 8px rgba(20,12,40,0.06)' : 'none'};
-                     transition: all 180ms;"
-              >
-                {opt.label}
-              </span>
-            {/each}
-          </button>
+          <MobileTabMenu {activeTab} onTabChange={(t) => (activeTab = t)} />
           <div style="flex: 1;"></div>
           <button
             type="button"
@@ -735,6 +741,111 @@
             </div>
           </section>
         {/if}
+
+        <!-- Notes view -->
+        {#if activeTab === 'notes'}
+          <section class="notes-pane">
+            {#if openNote}
+              {#key openNote.id}
+                <NoteEditor
+                  note={openNote}
+                  isNew={openNote.id === freshNoteId}
+                  onBack={() => (editingNoteId = null)}
+                />
+              {/key}
+            {:else}
+              <div style="padding: 14px 16px 0;">
+                <div style="padding: 4px 4px 14px;">
+                  <div
+                    style="font-family: var(--font-display); font-weight: 700;
+                       font-size: var(--fs-display); line-height: 1.05; letter-spacing: -1.2px;
+                       color: var(--ink);"
+                  >
+                    Notes<span style="color: var(--accent);">.</span>
+                  </div>
+                  <div
+                    style="margin-top: 6px; font-size: var(--fs-meta); font-weight: 600;
+                       letter-spacing: 0.2px; color: var(--ink-faint);
+                       font-variant-numeric: tabular-nums; text-transform: uppercase;"
+                  >
+                    {store.data.notes.length === 0
+                      ? 'A place for quick notes and longer thoughts.'
+                      : `${store.data.notes.length} note${store.data.notes.length === 1 ? '' : 's'}`}
+                  </div>
+                </div>
+
+                {#if store.data.notes.length > 0}
+                  <ul
+                    style="list-style: none; padding: 0; margin: 18px 0 0;
+                       display: flex; flex-direction: column; gap: 10px;"
+                  >
+                    {#each store.notes as note (note.id)}
+                      <li>
+                        <NoteItem {note} onOpen={(n) => (editingNoteId = n.id)} />
+                      </li>
+                    {/each}
+                  </ul>
+                {:else}
+                  <!-- Empty state -->
+                  <div style="padding: 36px 24px 0; text-align: center;">
+                    <div
+                      style="font-family: var(--font-display); font-weight: 700;
+                         font-size: 30px; line-height: 1.05; letter-spacing: -1.2px;
+                         color: var(--ink); margin-bottom: 8px;"
+                    >
+                      Start a note.
+                    </div>
+                    <p
+                      style="margin: 0 auto 28px; max-width: 280px;
+                         font-family: var(--font-body); font-size: 14px; line-height: 1.45;
+                         color: var(--ink-muted);"
+                    >
+                      Jot down ideas, lists, or longer thoughts. Separate from your habits and
+                      tasks.
+                    </p>
+                    <div
+                      class="ht-card"
+                      style="margin: 0 auto; max-width: 320px;
+                         background: var(--surface); border-radius: 18px;
+                         padding: 18px; border: 1px solid var(--line);
+                         box-shadow: 0 8px 30px rgba(20, 12, 40, 0.06);
+                         display: flex; flex-direction: column; gap: 12px;"
+                    >
+                      <button
+                        type="button"
+                        onclick={openAddNote}
+                        style="width: 100%; padding: 14px 16px; border-radius: 14px;
+                           background: var(--accent); color: var(--accent-on);
+                           border: 0; cursor: pointer;
+                           font-family: var(--font-display); font-size: 16px; font-weight: 600;
+                           letter-spacing: -0.2px;
+                           box-shadow: 0 8px 22px var(--accent-glow);"
+                      >
+                        + Add your first note
+                      </button>
+                      <div
+                        style="display: flex; flex-direction: column; gap: 6px;
+                           font-family: var(--font-body); font-size: 12px; color: var(--ink-muted);
+                           text-align: left;"
+                      >
+                        <div
+                          style="font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
+                             text-transform: uppercase; color: var(--ink-faint);
+                             margin-bottom: 2px; text-align: center;"
+                        >
+                          Examples
+                        </div>
+                        <div>• Reading list</div>
+                        <div>• Meeting notes</div>
+                        <div>• Trip planning</div>
+                      </div>
+                    </div>
+                  </div>
+                {/if}
+              </div>
+            {/if}
+          </section>
+        {/if}
       </main>
 
       <!-- FAB (mobile) -->
@@ -743,7 +854,11 @@
           <button
             type="button"
             onclick={handleAddClick}
-            aria-label={activeTab === 'habits' ? 'Add habit' : 'Add task'}
+            aria-label={activeTab === 'habits'
+              ? 'Add habit'
+              : activeTab === 'todos'
+                ? 'Add task'
+                : 'New note'}
             class="fab"
           >
             <IconPlus class="h-7 w-7" />
@@ -813,7 +928,8 @@
   }
 
   .habits-pane,
-  .tasks-pane {
+  .tasks-pane,
+  .notes-pane {
     width: 100%;
     max-width: 480px;
     margin: 0 auto;
@@ -859,7 +975,8 @@
       flex-direction: row;
     }
     .habits-pane,
-    .tasks-pane {
+    .tasks-pane,
+    .notes-pane {
       max-width: 640px;
     }
   }
