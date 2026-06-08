@@ -6,7 +6,7 @@ import type { Habit } from './types';
 // prop-drilling.
 export type PriorityBucket = 'high' | 'med' | 'low' | 'none';
 
-const KEY = 'habit-tracker:priority-filter';
+const KEY = 'meridian:priority-filter';
 
 const BUCKETS: PriorityBucket[] = ['high', 'med', 'low', 'none'];
 

@@ -12,8 +12,8 @@ import type {
 } from './types';
 import { defaultSettings, emptyAppData } from './types';
 
-export const STORAGE_KEY = 'habit-tracker:v1';
-export const BACKUP_KEY = 'habit-tracker:backup';
+export const STORAGE_KEY = 'meridian:v1';
+export const BACKUP_KEY = 'meridian:backup';
 export const CURRENT_VERSION = 9 as const;
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;

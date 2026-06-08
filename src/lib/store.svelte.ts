@@ -15,7 +15,7 @@ import { emptyAppData } from './types';
 import { newId } from './ids';
 import { effectiveTarget, isLimit, normalizeDays } from './schedule';
 import { selectedDate } from './selectedDate.svelte';
-import { STORAGE_KEY, migrate } from './storage';
+import { STORAGE_KEY, BACKUP_KEY, migrate } from './storage';
 import {
   computeDonesByHabit,
   computeSkippedByHabit,
@@ -158,7 +158,7 @@ class HabitStore {
               await apiImportData(migrated);
               this.data = migrated;
               localStorage.removeItem(STORAGE_KEY);
-              localStorage.removeItem('habit-tracker:backup');
+              localStorage.removeItem(BACKUP_KEY);
               this.ready = true;
               return;
             }

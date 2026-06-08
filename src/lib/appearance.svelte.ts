@@ -1,8 +1,8 @@
 export type Theme = 'light' | 'dark';
 export type Accent = 'violet' | 'tangerine' | 'lime' | 'cobalt';
 
-const THEME_KEY = 'habit-tracker:theme';
-const ACCENT_KEY = 'habit-tracker:accent';
+const THEME_KEY = 'meridian:theme';
+const ACCENT_KEY = 'meridian:accent';
 
 function readTheme(): Theme {
   if (typeof localStorage === 'undefined') return 'light';

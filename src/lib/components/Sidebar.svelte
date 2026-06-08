@@ -78,7 +78,7 @@
       </svg>
     </span>
     {#if !collapsed}
-      <span class="logo-text">Habit Tracker</span>
+      <span class="logo-text">Meridian</span>
     {/if}
   </div>
 

@@ -11,14 +11,28 @@
       href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Manrope:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <title>Habit Tracker</title>
+    <title>Meridian</title>
     <script>
       // Sync theme/accent attrs from saved prefs before paint, to avoid a
       // light/violet flash for users who picked dark or a different accent.
       (function () {
         try {
-          var t = localStorage.getItem('habit-tracker:theme');
-          var a = localStorage.getItem('habit-tracker:accent');
+          // One-time, non-destructive migration of the app's old "habit-tracker:"
+          // localStorage keys to the "meridian:" prefix. Runs here, before any other
+          // script, so every later reader (appearance, storage, priority filter) and
+          // the pre-paint theme read below all see the migrated values. The key list
+          // is duplicated here because this inline script can't import TS modules.
+          var keys = ['v1', 'backup', 'theme', 'accent', 'priority-filter'];
+          for (var i = 0; i < keys.length; i++) {
+            var oldKey = 'habit-tracker:' + keys[i];
+            var newKey = 'meridian:' + keys[i];
+            if (localStorage.getItem(newKey) === null) {
+              var val = localStorage.getItem(oldKey);
+              if (val !== null) localStorage.setItem(newKey, val);
+            }
+          }
+          var t = localStorage.getItem('meridian:theme');
+          var a = localStorage.getItem('meridian:accent');
           if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
           if (a === 'tangerine' || a === 'lime' || a === 'cobalt')
             document.documentElement.setAttribute('data-accent', a);

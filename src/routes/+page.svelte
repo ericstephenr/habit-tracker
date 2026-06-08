@@ -352,7 +352,7 @@
 </script>
 
 <svelte:head>
-  <title>{pageTitle} · Habit Tracker</title>
+  <title>{pageTitle} · Meridian</title>
 </svelte:head>
 
 {#if !store.ready}

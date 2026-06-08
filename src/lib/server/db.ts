@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { mkdirSync } from 'fs';
+import { copyFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
 import type {
   AppData,
@@ -15,20 +15,46 @@ import type {
 } from '../types';
 import { defaultSettings, emptyAppData } from '../types';
 
-const DB_PATH =
-  process.env.DATABASE_PATH ||
-  join(
-    process.env.XDG_DATA_HOME || join(process.env.HOME || '/tmp', '.local', 'share'),
-    'habit-tracker',
-    'habits.db'
-  );
+const DATA_HOME = process.env.XDG_DATA_HOME || join(process.env.HOME || '/tmp', '.local', 'share');
+
+// Default data location. `DATABASE_PATH` still wins for explicit overrides.
+const DB_PATH = process.env.DATABASE_PATH || join(DATA_HOME, 'meridian', 'habits.db');
+
+// Legacy location from when the app was called "Habit Tracker". We migrate it into
+// place once (see resolveDbPath) so the rename never loses anyone's data.
+const LEGACY_DB_PATH = join(DATA_HOME, 'habit-tracker', 'habits.db');
 
 let _db: Database.Database | null = null;
 
+// Path to actually open. On first run after the rename, copy the legacy DB (and its
+// WAL sidecars) into the new location — copy, not move, so the old files stay as an
+// automatic backup. If anything goes wrong, fall back to the legacy path so we never
+// start empty on top of real data; the copy is retried next launch.
+function resolveDbPath(): string {
+  if (process.env.DATABASE_PATH) return process.env.DATABASE_PATH;
+  if (existsSync(DB_PATH) || !existsSync(LEGACY_DB_PATH)) return DB_PATH;
+  try {
+    mkdirSync(dirname(DB_PATH), { recursive: true });
+    for (const suffix of ['', '-wal', '-shm']) {
+      if (existsSync(LEGACY_DB_PATH + suffix)) {
+        copyFileSync(LEGACY_DB_PATH + suffix, DB_PATH + suffix);
+      }
+    }
+    return DB_PATH;
+  } catch (e) {
+    console.warn(
+      `Meridian: could not migrate data from ${LEGACY_DB_PATH} to ${DB_PATH}; ` +
+        `using the legacy location for now (${e}).`
+    );
+    return LEGACY_DB_PATH;
+  }
+}
+
 function getDb(): Database.Database {
   if (_db) return _db;
-  mkdirSync(dirname(DB_PATH), { recursive: true });
-  _db = new Database(DB_PATH);
+  const dbPath = resolveDbPath();
+  mkdirSync(dirname(dbPath), { recursive: true });
+  _db = new Database(dbPath);
   _db.pragma('journal_mode = WAL');
   _db.pragma('foreign_keys = ON');
   _db.exec(SCHEMA);

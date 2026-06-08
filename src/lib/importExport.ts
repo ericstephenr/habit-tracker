@@ -29,7 +29,7 @@ export function buildExportPayload(data: AppData): ExportEnvelope {
 }
 
 export function exportFilename(): string {
-  return `habit-tracker-export-${todayISO()}.json`;
+  return `meridian-export-${todayISO()}.json`;
 }
 
 export function downloadJson(filename: string, payload: unknown): void {
@@ -47,7 +47,7 @@ export function downloadJson(filename: string, payload: unknown): void {
 
 export async function readFile(file: File): Promise<string> {
   if (file.size > MAX_IMPORT_BYTES) {
-    throw new Error("File is too large. This doesn't look like a habit-tracker export.");
+    throw new Error("File is too large. This doesn't look like a Meridian export.");
   }
   try {
     return await file.text();
@@ -73,7 +73,7 @@ export function parseImportText(raw: string): ImportResult {
   if (!isPlainObject(parsed)) {
     return {
       ok: false,
-      error: 'Unexpected file shape — expected an exported habit-tracker JSON file.'
+      error: 'Unexpected file shape — expected an exported Meridian JSON file.'
     };
   }
 
@@ -95,7 +95,7 @@ export function parseImportText(raw: string): ImportResult {
 
   const data = migrate(unwrapped);
   if (!data) {
-    return { ok: false, error: "This file isn't a valid habit-tracker export." };
+    return { ok: false, error: "This file isn't a valid Meridian export." };
   }
   return { ok: true, data, meta };
 }
