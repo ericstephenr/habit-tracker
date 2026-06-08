@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { Section } from '$lib/types';
   import { store } from '$lib/store.svelte';
-  import IconCheck from './icons/IconCheck.svelte';
   import IconChevron from './icons/IconChevron.svelte';
   import IconKebab from './icons/IconKebab.svelte';
 
@@ -17,94 +16,51 @@
     onRename: (s: Section) => void;
   } = $props();
 
-  let allDone = $derived(totalCount > 0 && doneCount === totalCount);
-
   function toggleCollapsed() {
     store.toggleSectionCollapsed(section.id);
   }
-
-  function onRowKey(e: KeyboardEvent) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      toggleCollapsed();
-    }
-  }
-
-  function handleGripClick(e: MouseEvent) {
-    e.stopPropagation();
-    onRename(section);
-  }
 </script>
 
-<div
-  role="button"
-  tabindex="0"
-  aria-expanded={!section.collapsed}
-  aria-label={section.collapsed ? `Expand ${section.name}` : `Collapse ${section.name}`}
-  onclick={toggleCollapsed}
-  onkeydown={onRowKey}
-  style="display: flex; align-items: center; gap: 8px;
-         padding: 8px 4px 10px;
-         border-bottom: 1px solid {allDone ? 'var(--accent-soft)' : 'var(--line)'};
-         margin-bottom: 10px;
-         cursor: pointer;
-         user-select: none;"
->
-  <span
-    style="padding: 4px; display: flex; align-items: center;
-               color: {allDone ? 'var(--accent)' : 'var(--ink-muted)'};"
+<div class="section-title">
+  <button
+    type="button"
+    class="section-collapse"
+    onclick={toggleCollapsed}
+    aria-expanded={!section.collapsed}
+    aria-label={section.collapsed ? `Expand ${section.name}` : `Collapse ${section.name}`}
   >
     <IconChevron dir={section.collapsed ? 'right' : 'down'} class="h-3 w-3" />
-  </span>
-  <span
-    style="font-family: var(--font-display); font-weight: 700;
-           font-size: var(--fs-body); letter-spacing: 1.4px; text-transform: uppercase;
-           color: {allDone ? 'var(--ink-muted)' : 'var(--ink)'};
-           {allDone
-      ? 'text-decoration: line-through; text-decoration-color: var(--accent); text-decoration-thickness: 1.5px;'
-      : ''}"
-  >
-    {section.name}
-  </span>
+    <span>{section.name}</span>
+  </button>
   {#if totalCount > 0}
-    <span
-      style="display: inline-flex; align-items: center; gap: 4px;
-             font-family: var(--font-display); font-size: var(--fs-overline); font-weight: 700;
-             color: {allDone ? 'var(--accent-on)' : 'var(--ink-faint)'};
-             background: {allDone ? 'var(--accent)' : 'var(--surface-2)'};
-             padding: {allDone ? '2px 7px 2px 5px' : '2px 8px'};
-             border-radius: var(--r-pill); font-variant-numeric: tabular-nums;
-             letter-spacing: 0.2px; line-height: 1.4;
-             box-shadow: {allDone ? '0 2px 6px var(--accent-glow)' : 'none'};"
-    >
-      {#if allDone}
-        <IconCheck class="h-2.5 w-2.5" />
-        Done
-      {:else}
-        {doneCount}/{totalCount}
-      {/if}
-    </span>
+    <span class="section-count">{doneCount}/{totalCount}</span>
   {/if}
   <div style="flex: 1;"></div>
   <button
     type="button"
-    class="section-drag-handle"
-    onclick={handleGripClick}
+    class="grip section-drag-handle"
+    onclick={() => onRename(section)}
     aria-label={`Edit ${section.name}`}
-    style="width: var(--card-ctrl); height: var(--card-ctrl); border: 0; background: transparent; padding: 0;
-           color: var(--ink-faint); cursor: pointer; flex-shrink: 0;
-           display: flex; align-items: center; justify-content: center;
-           border-radius: var(--r-pill); touch-action: none;
-           transition: background var(--t-quick) var(--ease-out), color var(--t-quick) var(--ease-out);"
-    onmouseenter={(e) => {
-      (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-2)';
-      (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-muted)';
-    }}
-    onmouseleave={(e) => {
-      (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-      (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
-    }}
   >
-    <IconKebab class="h-5 w-5" />
+    <IconKebab />
   </button>
 </div>
+
+<style>
+  .section-collapse {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    padding: 0;
+  }
+  .section-collapse :global(svg) {
+    color: var(--ink-faint);
+  }
+</style>

@@ -1,45 +1,25 @@
 export type Theme = 'light' | 'dark';
-export type Accent = 'violet' | 'tangerine' | 'lime' | 'cobalt';
 
 const THEME_KEY = 'meridian:theme';
-const ACCENT_KEY = 'meridian:accent';
 
 function readTheme(): Theme {
   if (typeof localStorage === 'undefined') return 'light';
-  const v = localStorage.getItem(THEME_KEY);
-  return v === 'dark' ? 'dark' : 'light';
-}
-
-function readAccent(): Accent {
-  if (typeof localStorage === 'undefined') return 'violet';
-  const v = localStorage.getItem(ACCENT_KEY);
-  if (v === 'tangerine' || v === 'lime' || v === 'cobalt' || v === 'violet') return v;
-  return 'violet';
+  return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light';
 }
 
 class Appearance {
   theme: Theme = $state(readTheme());
-  accent: Accent = $state(readAccent());
 
   constructor() {
     if (typeof window === 'undefined') return;
-    // Reflect persisted values to the <html> element on hydration. The static
-    // attributes in app.html cover SSR/initial paint; this overwrites with the
-    // user's saved preference once JS runs.
+    // Reflect the persisted value to <html> on hydration. The static attribute in
+    // app.html covers SSR/initial paint; this overwrites with the saved preference
+    // once JS runs.
     this.reflect();
 
     window.addEventListener('storage', (e) => {
       if (e.key === THEME_KEY && (e.newValue === 'light' || e.newValue === 'dark')) {
         this.theme = e.newValue;
-        this.reflect();
-      } else if (
-        e.key === ACCENT_KEY &&
-        (e.newValue === 'violet' ||
-          e.newValue === 'tangerine' ||
-          e.newValue === 'lime' ||
-          e.newValue === 'cobalt')
-      ) {
-        this.accent = e.newValue;
         this.reflect();
       }
     });
@@ -51,16 +31,12 @@ class Appearance {
     this.reflect();
   }
 
-  setAccent(next: Accent): void {
-    this.accent = next;
-    localStorage.setItem(ACCENT_KEY, next);
-    this.reflect();
+  toggle(): void {
+    this.setTheme(this.theme === 'dark' ? 'light' : 'dark');
   }
 
   private reflect(): void {
-    const html = document.documentElement;
-    html.setAttribute('data-theme', this.theme);
-    html.setAttribute('data-accent', this.accent);
+    document.documentElement.setAttribute('data-theme', this.theme);
   }
 }
 

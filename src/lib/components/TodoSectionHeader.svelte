@@ -4,75 +4,46 @@
   import IconChevron from './icons/IconChevron.svelte';
   import IconKebab from './icons/IconKebab.svelte';
 
-  let {
-    section,
-    onRename
-  }: {
-    section: Section;
-    onRename: (s: Section) => void;
-  } = $props();
-
-  function toggleCollapsed() {
-    store.toggleTodoSectionCollapsed(section.id);
-  }
-
-  function onRowKey(e: KeyboardEvent) {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      toggleCollapsed();
-    }
-  }
-
-  function handleGripClick(e: MouseEvent) {
-    e.stopPropagation();
-    onRename(section);
-  }
+  let { section, onRename }: { section: Section; onRename: (s: Section) => void } = $props();
 </script>
 
-<div
-  role="button"
-  tabindex="0"
-  aria-expanded={!section.collapsed}
-  aria-label={section.collapsed ? `Expand ${section.name}` : `Collapse ${section.name}`}
-  onclick={toggleCollapsed}
-  onkeydown={onRowKey}
-  style="display: flex; align-items: center; gap: 8px;
-         padding: 8px 4px 10px;
-         border-bottom: 1px solid var(--line);
-         margin-bottom: 10px;
-         cursor: pointer;
-         user-select: none;"
->
-  <span style="padding: 4px; display: flex; align-items: center; color: var(--ink-muted);">
-    <IconChevron dir={section.collapsed ? 'right' : 'down'} class="h-3 w-3" />
-  </span>
-  <span
-    style="font-family: var(--font-display); font-weight: 700;
-           font-size: var(--fs-body); letter-spacing: 1.4px; text-transform: uppercase;
-           color: var(--ink);"
+<div class="section-title">
+  <button
+    type="button"
+    class="section-collapse"
+    onclick={() => store.toggleTodoSectionCollapsed(section.id)}
+    aria-expanded={!section.collapsed}
+    aria-label={section.collapsed ? `Expand ${section.name}` : `Collapse ${section.name}`}
   >
-    {section.name}
-  </span>
+    <IconChevron dir={section.collapsed ? 'right' : 'down'} class="h-3 w-3" />
+    <span>{section.name}</span>
+  </button>
   <div style="flex: 1;"></div>
   <button
     type="button"
-    class="todo-section-drag-handle"
-    onclick={handleGripClick}
+    class="grip todo-section-drag-handle"
+    onclick={() => onRename(section)}
     aria-label={`Edit ${section.name}`}
-    style="width: var(--card-ctrl); height: var(--card-ctrl); border: 0; background: transparent; padding: 0;
-           color: var(--ink-faint); cursor: pointer; flex-shrink: 0;
-           display: flex; align-items: center; justify-content: center;
-           border-radius: var(--r-pill); touch-action: none;
-           transition: background var(--t-quick) var(--ease-out), color var(--t-quick) var(--ease-out);"
-    onmouseenter={(e) => {
-      (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-2)';
-      (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-muted)';
-    }}
-    onmouseleave={(e) => {
-      (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-      (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-faint)';
-    }}
   >
-    <IconKebab class="h-5 w-5" />
+    <IconKebab />
   </button>
 </div>
+
+<style>
+  .section-collapse {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    padding: 0;
+  }
+  .section-collapse :global(svg) {
+    color: var(--ink-faint);
+  }
+</style>

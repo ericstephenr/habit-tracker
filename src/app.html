@@ -1,20 +1,14 @@
 <!doctype html>
-<html lang="en" data-theme="light" data-accent="violet">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8" />
     <link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#f8efde" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Manrope:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
+    <meta name="theme-color" content="#ffffff" />
     <title>Meridian</title>
     <script>
-      // Sync theme/accent attrs from saved prefs before paint, to avoid a
-      // light/violet flash for users who picked dark or a different accent.
+      // Sync the theme attr from saved prefs before paint, to avoid a light flash
+      // for users who picked dark mode.
       (function () {
         try {
           // One-time, non-destructive migration of the app's old "habit-tracker:"
@@ -22,7 +16,7 @@
           // script, so every later reader (appearance, storage, priority filter) and
           // the pre-paint theme read below all see the migrated values. The key list
           // is duplicated here because this inline script can't import TS modules.
-          var keys = ['v1', 'backup', 'theme', 'accent', 'priority-filter'];
+          var keys = ['v1', 'backup', 'theme', 'priority-filter'];
           for (var i = 0; i < keys.length; i++) {
             var oldKey = 'habit-tracker:' + keys[i];
             var newKey = 'meridian:' + keys[i];
@@ -31,11 +25,8 @@
               if (val !== null) localStorage.setItem(newKey, val);
             }
           }
-          var t = localStorage.getItem('meridian:theme');
-          var a = localStorage.getItem('meridian:accent');
-          if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
-          if (a === 'tangerine' || a === 'lime' || a === 'cobalt')
-            document.documentElement.setAttribute('data-accent', a);
+          if (localStorage.getItem('meridian:theme') === 'dark')
+            document.documentElement.setAttribute('data-theme', 'dark');
         } catch (e) {
           /* localStorage blocked — fall back to static defaults */
         }

@@ -1,6 +1,5 @@
 <script lang="ts">
   import { store } from '$lib/store.svelte';
-  import { appearance, type Accent } from '$lib/appearance.svelte';
   import {
     buildExportPayload,
     downloadJson,
@@ -149,13 +148,6 @@
     return `Today and the previous ${n} ${days} stay editable; older misses turn Failed.`;
   }
 
-  const ACCENTS: Array<{ value: Accent; color: string }> = [
-    { value: 'violet', color: 'oklch(0.62 0.22 300)' },
-    { value: 'tangerine', color: 'oklch(0.72 0.18 50)' },
-    { value: 'lime', color: 'oklch(0.72 0.2 135)' },
-    { value: 'cobalt', color: 'oklch(0.55 0.22 260)' }
-  ];
-
   function rowStyle(danger = false) {
     return (
       'display: flex; align-items: center; gap: 14px;' +
@@ -219,52 +211,6 @@
       onchange={onPick}
       style="display: none;"
     />
-
-    <div style="height: 1px; background: var(--line); margin: 8px 0;"></div>
-
-    <div style="padding: 4px 0 8px;">
-      <div
-        style="font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
-               text-transform: uppercase; color: var(--ink-muted);
-               margin-bottom: 12px;"
-      >
-        Appearance
-      </div>
-      <SegmentToggle
-        value={appearance.theme}
-        options={[
-          { value: 'light', label: 'Light' },
-          { value: 'dark', label: 'Dark' }
-        ]}
-        onChange={(v) => appearance.setTheme(v)}
-      />
-    </div>
-
-    <div style="padding: 4px 0 4px;">
-      <div
-        style="font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
-               text-transform: uppercase; color: var(--ink-muted);
-               margin-bottom: 12px;"
-      >
-        Accent color
-      </div>
-      <div style="display: flex; gap: 12px;">
-        {#each ACCENTS as a (a.value)}
-          {@const selected = appearance.accent === a.value}
-          <button
-            type="button"
-            onclick={() => appearance.setAccent(a.value)}
-            aria-label={a.value}
-            aria-pressed={selected}
-            style="width: 48px; height: 48px; border-radius: 14px;
-                   background: {a.color}; cursor: pointer; padding: 0;
-                   border: 3px solid {selected ? 'var(--ink)' : 'transparent'};
-                   box-shadow: 0 4px 12px {a.color}40;
-                   transition: transform 140ms;"
-          ></button>
-        {/each}
-      </div>
-    </div>
 
     <div style="height: 1px; background: var(--line); margin: 8px 0;"></div>
 
